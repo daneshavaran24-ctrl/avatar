@@ -188,8 +188,11 @@ export const ERROR_LIVEAVATAR_NOT_SELECTED = "LIVEAVATAR_AVATAR_NOT_SELECTED";
 // نام‌های Provider
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type ChatProvider = "openai" | "openrouter" | "lovable";
-export type SttProvider = "openai" | "groq" | "lovable";
+/** Largest audio upload accepted for transcription (~10 MB). */
+export const MAX_AUDIO_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+export type ChatProvider = "openai" | "openrouter" | "none";
+export type SttProvider = "openai" | "groq" | "none";
 export type TtsProvider = "elevenlabs" | "openai" | "browser";
 export type AvatarProvider = "heygen" | "liveavatar";
 

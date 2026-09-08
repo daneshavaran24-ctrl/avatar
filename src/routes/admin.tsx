@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { ArrowRight, LogOut } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AdminBehavior } from "@/components/ravi/AdminBehavior";
@@ -12,6 +11,7 @@ import { AdminConversations } from "@/components/ravi/AdminConversations";
 import { AdminKnowledge } from "@/components/ravi/AdminKnowledge";
 import { AdminConnections } from "@/components/ravi/AdminConnections";
 import { getOverview } from "@/lib/ravi/admin.functions";
+import { adminLogout, adminWhoami } from "@/lib/ravi/auth.functions";
 import { SOURCE_LABELS, type SourceType } from "@/lib/ravi/types";
 
 export const Route = createFileRoute("/admin")({
@@ -37,17 +37,23 @@ export const Route = createFileRoute("/admin")({
 
 function AdminPage() {
   const navigate = useNavigate();
+  const whoami = useServerFn(adminWhoami);
+  const logout = useServerFn(adminLogout);
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    void supabase.auth.getSession().then(({ data }) => {
-      if (!data.session) {
+    void whoami()
+      .then((session) => {
+        if (!session) {
+          void navigate({ to: "/auth" });
+          return;
+        }
+        setChecked(true);
+      })
+      .catch(() => {
         void navigate({ to: "/auth" });
-        return;
-      }
-      setChecked(true);
-    });
-  }, [navigate]);
+      });
+  }, [navigate, whoami]);
 
   if (!checked) {
     return (
@@ -78,7 +84,7 @@ function AdminPage() {
               variant="ghost"
               size="sm"
               onClick={async () => {
-                await supabase.auth.signOut();
+                await logout();
                 void navigate({ to: "/auth" });
               }}
             >

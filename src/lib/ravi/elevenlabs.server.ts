@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { sql } from "@/lib/db/client.server";
 import { loadStoredKeys } from "./keystore.server";
 
 /**
@@ -38,14 +38,13 @@ export async function elevenLabsKey(): Promise<string | null> {
 
 export async function elevenSettings(): Promise<ElevenSettings> {
   try {
-    const { data } = await supabaseAdmin
-      .from("app_settings")
-      .select(
-        "elevenlabs_enabled, elevenlabs_voice_id, elevenlabs_voice_name, elevenlabs_model, elevenlabs_stability, elevenlabs_similarity, elevenlabs_style",
-      )
-      .limit(1)
-      .maybeSingle();
-    const row = (data ?? {}) as Record<string, unknown>;
+    const [data] = await sql<Record<string, unknown>[]>`
+      SELECT elevenlabs_enabled, elevenlabs_voice_id, elevenlabs_voice_name, elevenlabs_model,
+             elevenlabs_stability, elevenlabs_similarity, elevenlabs_style
+      FROM app_settings
+      LIMIT 1
+    `;
+    const row = data ?? {};
     return {
       enabled: row["elevenlabs_enabled"] !== false,
       voiceId: String(row["elevenlabs_voice_id"] ?? ""),
@@ -330,21 +329,23 @@ export async function saveElevenVoice(input: {
   similarity: number;
   style: number;
 }) {
-  const { data } = await supabaseAdmin.from("app_settings").select("id").limit(1).maybeSingle();
-  if (!data) throw new Error("تنظیمات سامانه در دسترس نیست.");
-  const { error } = await supabaseAdmin
-    .from("app_settings")
-    .update({
-      elevenlabs_voice_id: input.voiceId,
-      elevenlabs_voice_name: input.voiceName,
-      elevenlabs_model: "eleven_multilingual_v2",
-      elevenlabs_stability: input.stability,
-      elevenlabs_similarity: input.similarity,
-      elevenlabs_style: input.style,
-      updated_at: new Date().toISOString(),
-    } as never)
-    .eq("id", (data as { id: string }).id);
-  if (error) throw new Error("ذخیرهٔ صدای ElevenLabs ناموفق بود.");
+  const [row] = await sql<{ id: string }[]>`SELECT id FROM app_settings LIMIT 1`;
+  if (!row) throw new Error("تنظیمات سامانه در دسترس نیست.");
+  try {
+    await sql`
+      UPDATE app_settings
+      SET elevenlabs_voice_id = ${input.voiceId},
+          elevenlabs_voice_name = ${input.voiceName},
+          elevenlabs_model = 'eleven_multilingual_v2',
+          elevenlabs_stability = ${input.stability},
+          elevenlabs_similarity = ${input.similarity},
+          elevenlabs_style = ${input.style},
+          updated_at = now()
+      WHERE id = ${row.id}
+    `;
+  } catch {
+    throw new Error("ذخیرهٔ صدای ElevenLabs ناموفق بود.");
+  }
   return { ok: true as const };
 }
 

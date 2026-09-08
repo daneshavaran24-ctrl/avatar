@@ -1,4 +1,4 @@
-import { chatComplete, CLASSIFIER_MODEL } from "./providers.server";
+import { chatComplete } from "./providers.server";
 
 const POLITICAL_HINTS = [
   "سیاس",
@@ -67,7 +67,10 @@ export async function classifyPolicyTopic(
         },
         { role: "user", content: question },
       ],
-      { model: CLASSIFIER_MODEL, maxTokens: 8 },
+      // No model override: the classifier runs on whichever provider chatComplete
+      // resolves to. Pinning a model here previously sent a gateway-namespaced id
+      // to OpenAI, which rejects it.
+      { maxTokens: 8 },
     );
 
     const label = result.text.toUpperCase();

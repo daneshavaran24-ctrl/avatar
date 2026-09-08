@@ -1,4 +1,5 @@
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { sql } from "@/lib/db/client.server";
+import type { JsonValue } from "@/lib/db/schema";
 import { providerConfig } from "./providers.server";
 
 export interface AvatarCredentials {
@@ -39,22 +40,17 @@ const LIVEAVATAR_BASE = "https://api.liveavatar.com";
 /** Keeps the last avatar-session outcome visible in the admin panel. */
 async function recordAvatarSessionStatus(ok: boolean, reason: string) {
   try {
-    const { data } = await supabaseAdmin
-      .from("app_settings")
-      .select("id, connection_status")
-      .limit(1)
-      .maybeSingle();
-    if (!data) return;
-    const current = (data.connection_status ?? {}) as Record<string, unknown>;
-    await supabaseAdmin
-      .from("app_settings")
-      .update({
-        connection_status: {
-          ...current,
-          avatar_session: { ok, reason, checked_at: new Date().toISOString() },
-        },
-      })
-      .eq("id", data.id);
+    const [row] = await sql<{ id: string; connection_status: Record<string, JsonValue> }[]>`
+      SELECT id, connection_status FROM app_settings LIMIT 1
+    `;
+    if (!row) return;
+    const next: Record<string, JsonValue> = {
+      ...(row.connection_status ?? {}),
+      avatar_session: { ok, reason, checked_at: new Date().toISOString() },
+    };
+    await sql`
+      UPDATE app_settings SET connection_status = ${sql.json(next)} WHERE id = ${row.id}
+    `;
   } catch {
     /* status logging must never break the session */
   }
@@ -109,15 +105,14 @@ async function selectedAvatar(): Promise<{
   previewUrl: string | null;
 }> {
   const config = await providerConfig();
-  const { data } = await supabaseAdmin
-    .from("app_settings")
-    .select(
-      "heygen_avatar_id, heygen_voice_id, heygen_avatar_name, heygen_voice_name, heygen_avatar_preview",
-    )
-    .limit(1)
-    .maybeSingle();
+  const [data] = await sql<Record<string, string | null>[]>`
+    SELECT heygen_avatar_id, heygen_voice_id, heygen_avatar_name, heygen_voice_name,
+           heygen_avatar_preview
+    FROM app_settings
+    LIMIT 1
+  `;
 
-  const row = (data ?? {}) as Record<string, string | null>;
+  const row = data ?? {};
   return {
     avatarId: row["heygen_avatar_id"] || config.heygenAvatarId,
     voiceId: row["heygen_voice_id"] || config.heygenVoiceId,
@@ -161,10 +156,10 @@ async function withPersianVoice<T extends { voiceId: string | null; voiceName: s
       persian.find((voice) => (voice.gender ?? "").toLowerCase() === (current?.gender ?? "").toLowerCase()) ??
       persian[0]!;
 
-    await supabaseAdmin
-      .from("app_settings")
-      .update({ heygen_voice_id: preferred.voiceId, heygen_voice_name: preferred.name })
-      .neq("id", "00000000-0000-0000-0000-000000000000");
+    await sql`
+      UPDATE app_settings
+      SET heygen_voice_id = ${preferred.voiceId}, heygen_voice_name = ${preferred.name}
+    `;
 
     return { ...selection, voiceId: preferred.voiceId, voiceName: preferred.name };
   } catch {

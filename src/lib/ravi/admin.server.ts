@@ -1,19 +1,17 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/integrations/supabase/types";
+import { sql } from "@/lib/db/client.server";
 
 /**
- * Role check runs through the caller's RLS-scoped client and the security
- * definer has_role() function — never through the admin client.
+ * Confirms a user still holds the admin role.
+ *
+ * requireAdmin() in auth.server.ts already establishes the session and the role
+ * in one query, so admin server functions do not need to call this as well.
+ * It remains for callers that hold only a user id.
  */
-export async function assertAdmin(
-  supabase: SupabaseClient<Database>,
-  userId: string,
-): Promise<void> {
-  const { data, error } = await supabase.rpc("has_role", {
-    _user_id: userId,
-    _role: "admin",
-  });
-  if (error || !data) {
+export async function assertAdmin(userId: string): Promise<void> {
+  const [row] = await sql<{ user_id: string }[]>`
+    SELECT user_id FROM user_roles WHERE user_id = ${userId} AND role = 'admin' LIMIT 1
+  `;
+  if (!row) {
     throw new Error("دسترسی مدیریتی برای این حساب کاربری فعال نیست.");
   }
 }

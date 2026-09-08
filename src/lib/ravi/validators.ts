@@ -1,19 +1,17 @@
 import { z } from "zod";
 
+/**
+ * No `history` field: conversation history is rebuilt server-side from
+ * conversation_messages. Accepting it from a public caller made it both a cost
+ * amplifier and a prompt-injection vector.
+ */
 export const askSchema = z.object({
   sessionId: z.string().uuid().nullable(),
   question: z.string().min(1).max(2000),
   inputMode: z.enum(["VOICE", "TEXT"]),
-  history: z
-    .array(
-      z.object({
-        role: z.enum(["user", "assistant"]),
-        content: z.string().max(4000),
-      }),
-    )
-    .max(20)
-    .default([]),
 });
+
+export const sessionIdSchema = z.string().uuid();
 
 export const settingsSchema = z.object({
   tone_preset: z.string().min(1).max(40),
@@ -41,7 +39,7 @@ export const avatarSelectionSchema = z.object({
 });
 
 export const connectionKeySchema = z.enum([
-  "lovable",
+  "openai",
   "heygen",
   "openrouter",
   "groq",
@@ -65,6 +63,9 @@ export const elevenVoiceSchema = z.object({
 });
 
 export const managedKeyNameSchema = z.enum([
+  // Must stay in step with MANAGED_KEYS in keystore.server.ts, otherwise the
+  // Keys tab cannot save a key the key store is willing to hold.
+  "OPENAI_API_KEY",
   "HEYGEN_API_KEY",
   "OPENROUTER_API_KEY",
   "GROQ_API_KEY",

@@ -1,5 +1,5 @@
-import { gatewayFetch, requireLovableApiKey } from "@/lib/ai-gateway.server";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { sql } from "@/lib/db/client.server";
+import type { JsonValue } from "@/lib/db/schema";
 import { loadStoredKeys } from "./keystore.server";
 import {
   PERSIAN_LANGUAGE_CODE,
@@ -24,15 +24,13 @@ import {
 } from "./constants";
 
 /**
- * Provider layer. Lovable AI Gateway is the default for chat, embeddings and
- * speech-to-text. When the operator supplies OPENROUTER_API_KEY / GROQ_API_KEY
- * the matching capability switches to those providers without touching the
- * answer pipeline.
+ * Provider layer. OpenAI is the baseline for chat, embeddings and
+ * speech-to-text; OPENROUTER_API_KEY / GROQ_API_KEY / DEEPGRAM_API_KEY switch
+ * the matching capability to those providers without touching the answer
+ * pipeline. There is no built-in gateway to fall back to, so an unset
+ * OPENAI_API_KEY is a configuration error rather than a degraded mode.
  */
-export const EMBEDDING_MODEL = "openai/text-embedding-3-small";
-export const ANSWER_MODEL = "google/gemini-3.7-flash";
-export const CLASSIFIER_MODEL = "google/gemini-3.1-flash-lite";
-export const GATEWAY_STT_MODEL = "openai/gpt-4o-transcribe";
+export const EMBEDDING_MODEL = "text-embedding-3-small";
 
 interface ServiceSwitches {
   heygen: boolean;
@@ -46,15 +44,9 @@ interface ServiceSwitches {
  */
 export async function serviceSwitches(): Promise<ServiceSwitches> {
   try {
-    const { data, error } = await supabaseAdmin
-      .from("app_settings")
-      .select("heygen_enabled, openrouter_enabled, groq_enabled")
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      console.error("[Config] Failed to load service switches:", error.message);
-    }
+    const [data] = await sql<
+      { heygen_enabled: boolean; openrouter_enabled: boolean; groq_enabled: boolean }[]
+    >`SELECT heygen_enabled, openrouter_enabled, groq_enabled FROM app_settings LIMIT 1`;
 
     return {
       heygen: data?.heygen_enabled ?? true,
@@ -92,25 +84,23 @@ export async function providerConfig() {
 }
 
 /**
- * Determines the active chat provider based on configured API keys.
- * Priority: OpenAI > OpenRouter > Lovable
- * @returns Name of the active chat provider
+ * Active chat provider. Priority: OpenAI > OpenRouter.
+ * "none" means nothing is configured and answering will fail.
  */
 export async function chatProviderName(): Promise<ChatProvider> {
   const config = await providerConfig();
   if (config.openAiKey) return "openai";
-  return config.openRouterKey ? "openrouter" : "lovable";
+  return config.openRouterKey ? "openrouter" : "none";
 }
 
 /**
- * Determines the active speech-to-text provider based on configured API keys.
- * Priority: OpenAI > Groq > Lovable
- * @returns Name of the active STT provider
+ * Active speech-to-text provider. Priority: OpenAI > Groq.
+ * "none" means nothing is configured and transcription will fail.
  */
 export async function sttProviderName(): Promise<SttProvider> {
   const config = await providerConfig();
   if (config.openAiKey) return "openai";
-  return config.groqKey ? "groq" : "lovable";
+  return config.groqKey ? "groq" : "none";
 }
 
 interface ChatMessage {
@@ -123,33 +113,21 @@ export interface ChatResult {
   tokenInput: number | null;
   tokenOutput: number | null;
   /** Provider that actually produced the answer (may differ after a fallback). */
-  provider?: "openai" | "openrouter" | "lovable-ai";
+  provider?: "openai" | "openrouter";
 }
 
 /** Records why a provider was skipped so the admin panel shows the real cause. */
 async function recordProviderDegradation(provider: string, message: string) {
   try {
-    const { data } = await supabaseAdmin
-      .from("app_settings")
-      .select("id, connection_status")
-      .limit(1)
-      .maybeSingle();
-    if (!data) return;
-    const current = (data.connection_status ?? {}) as Record<string, unknown>;
-    await supabaseAdmin
-      .from("app_settings")
-      .update({
-        connection_status: {
-          ...current,
-          [provider]: {
-            ok: false,
-            message,
-            latencyMs: null,
-            at: new Date().toISOString(),
-          },
-        },
-      } as never)
-      .eq("id", data.id);
+    const [row] = await sql<{ id: string; connection_status: Record<string, JsonValue> }[]>`
+      SELECT id, connection_status FROM app_settings LIMIT 1
+    `;
+    if (!row) return;
+    const next: Record<string, JsonValue> = {
+      ...(row.connection_status ?? {}),
+      [provider]: { ok: false, message, latencyMs: null, at: new Date().toISOString() },
+    };
+    await sql`UPDATE app_settings SET connection_status = ${sql.json(next)} WHERE id = ${row.id}`;
   } catch {
     /* status logging must never break an answer */
   }
@@ -181,50 +159,19 @@ export function persianProviderMessage(status: number): string {
   return `سرویس OpenRouter پاسخ نداد (کد ${status}).`;
 }
 
-async function gatewayChat(
-  messages: ChatMessage[],
-  model: string,
-  maxTokens?: number,
-): Promise<ChatResult> {
-  const response = await gatewayFetch("/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      messages,
-      ...(maxTokens ? { max_tokens: maxTokens } : {}),
-    }),
-  });
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new ProviderError("lovable-ai", response.status, detail.slice(0, 400));
-  }
-  const json = (await response.json()) as {
-    choices?: { message?: { content?: string } }[];
-    usage?: { prompt_tokens?: number; completion_tokens?: number };
-  };
-  return {
-    text: json.choices?.[0]?.message?.content?.trim() ?? "",
-    tokenInput: json.usage?.prompt_tokens ?? null,
-    tokenOutput: json.usage?.completion_tokens ?? null,
-    provider: "lovable-ai",
-  };
-}
-
 /**
  * Chat completion with cascading fallback across multiple providers.
  *
  * Priority order:
  * 1. OpenAI (if OPENAI_API_KEY configured)
  * 2. OpenRouter (if OPENROUTER_API_KEY configured)
- * 3. Lovable AI Gateway (always available as final fallback)
  *
  * @param messages Array of chat messages (system, user, assistant)
  * @param options Configuration options for the chat request
  * @param options.model Override the default model for the provider
  * @param options.maxTokens Maximum tokens to generate in the response
  * @returns Chat result with generated text, token usage, and provider used
- * @throws {ProviderError} Only if all providers fail (rare)
+ * @throws {ProviderError} If every configured provider fails
  */
 export async function chatComplete(
   messages: ChatMessage[],
@@ -338,46 +285,63 @@ export async function chatComplete(
     }
   }
 
-  return gatewayChat(messages, ANSWER_MODEL, options.maxTokens);
+  throw new ProviderError(
+    "chat",
+    502,
+    "هیچ سرویس پاسخ‌گویی در دسترس نیست؛ کلید OpenAI را بررسی کنید.",
+  );
 }
 
 
 /**
- * Generate text embedding using Lovable AI Gateway.
+ * One OpenAI embeddings call. Embeddings have no second provider: OpenRouter
+ * does not serve text-embedding-3-small, and mixing embedding models would make
+ * stored vectors incomparable with query vectors.
+ */
+async function requestEmbeddings(input: string[]): Promise<number[][]> {
+  const config = await providerConfig();
+  if (!config.openAiKey) {
+    throw new ProviderError("openai", 401, "کلید OpenAI برای بردارسازی تنظیم نشده است.");
+  }
+
+  const response = await fetch("https://api.openai.com/v1/embeddings", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.openAiKey}`,
+    },
+    body: JSON.stringify({ model: EMBEDDING_MODEL, input }),
+  });
+
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 400);
+    console.error("[Embeddings] OpenAI request failed:", {
+      status: response.status,
+      detail: detail.slice(0, 100),
+    });
+    throw new ProviderError("openai", response.status, detail);
+  }
+
+  const json = (await response.json()) as { data?: { embedding: number[] }[] };
+  return (json.data ?? []).map((item) => item.embedding);
+}
+
+/**
+ * Generate a text embedding via OpenAI.
  * @param text Input text to embed
  * @returns Embedding vector as array of numbers
  * @throws {ProviderError} If API request fails or returns invalid data
  */
 export async function embedText(text: string): Promise<number[]> {
-  requireLovableApiKey();
-
   if (!text || text.trim().length === 0) {
     throw new ProviderError("input", 400, "Cannot embed empty text");
   }
 
-  const response = await gatewayFetch("/embeddings", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: EMBEDDING_MODEL, input: text }),
-  });
-
-  if (!response.ok) {
-    const detail = await response.text();
-    console.error("[Embeddings] Gateway request failed:", {
-      status: response.status,
-      detail: detail.slice(0, 100),
-    });
-    throw new ProviderError("lovable-ai", response.status, detail.slice(0, 400));
-  }
-
-  const json = (await response.json()) as { data?: { embedding?: number[] }[] };
-  const embedding = json.data?.[0]?.embedding;
-
-  if (!embedding || embedding.length === 0) {
+  const [embedding] = await requestEmbeddings([text]);
+  if (!embedding) {
     console.error("[Embeddings] Empty embedding response");
-    throw new ProviderError("lovable-ai", 500, "empty embedding response");
+    throw new ProviderError("openai", 502, "empty embedding response");
   }
-
   return embedding;
 }
 
@@ -399,25 +363,7 @@ export async function embedBatch(texts: string[]): Promise<number[][]> {
   // Keep batches small so a single failure does not lose a whole document.
   for (let index = 0; index < texts.length; index += EMBEDDING_BATCH_SIZE) {
     const slice = texts.slice(index, index + EMBEDDING_BATCH_SIZE);
-    const response = await gatewayFetch("/embeddings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: EMBEDDING_MODEL, input: slice }),
-    });
-
-    if (!response.ok) {
-      const detail = await response.text();
-      console.error("[Embeddings] Batch request failed:", {
-        status: response.status,
-        batchIndex: index,
-        batchSize: slice.length,
-        detail: detail.slice(0, 100),
-      });
-      throw new ProviderError("lovable-ai", response.status, detail.slice(0, 400));
-    }
-
-    const json = (await response.json()) as { data?: { embedding: number[] }[] };
-    const embeddings = json.data ?? [];
+    const embeddings = await requestEmbeddings(slice);
 
     if (embeddings.length !== slice.length) {
       console.error("[Embeddings] Batch size mismatch:", {
@@ -426,7 +372,7 @@ export async function embedBatch(texts: string[]): Promise<number[][]> {
       });
     }
 
-    for (const item of embeddings) out.push(item.embedding);
+    out.push(...embeddings);
   }
 
   return out;
@@ -542,7 +488,7 @@ async function transcribeWithDeepgram(
 
 /**
  * Whisper transcription with cascading provider fallback.
- * Priority: OpenAI > Groq > Lovable Gateway
+ * Priority: OpenAI > Groq
  * @param audio Audio blob to transcribe
  * @param filename Original filename for MIME type detection
  * @param config Provider configuration with API keys
@@ -595,14 +541,8 @@ async function transcribeWithWhisper(
       const json = (await response.json()) as { text?: string };
       return cleanTranscript(json.text ?? "");
     }
-    form.append("model", GATEWAY_STT_MODEL);
-    const response = await gatewayFetch("/audio/transcriptions", { method: "POST", body: form });
-    if (!response.ok) {
-      console.error("gateway transcription failed", (await response.text()).slice(0, 300));
-      return null;
-    }
-    const json = (await response.json()) as { text?: string };
-    return cleanTranscript(json.text ?? "");
+    console.error("[STT] No Whisper provider configured (set OPENAI_API_KEY or GROQ_API_KEY)");
+    return null;
   } catch (error) {
     console.error("whisper transcription error", error);
     return null;
@@ -651,7 +591,7 @@ function scorePersianTranscript(text: string): number {
  * Persian speech-to-text with parallel engine processing.
  *
  * Strategy:
- * - Deepgram (nova-3/whisper-large) and Whisper (OpenAI/Groq/Gateway) run in parallel
+ * - Deepgram (nova-3/whisper-large) and Whisper (OpenAI/Groq) run in parallel
  * - Each transcript is scored for Persian quality
  * - The highest-scoring transcript wins
  *

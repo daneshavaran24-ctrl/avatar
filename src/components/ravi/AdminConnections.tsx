@@ -34,6 +34,7 @@ import {
 } from "@/lib/ravi/admin.functions";
 
 type ManagedKeyName =
+  | "OPENAI_API_KEY"
   | "HEYGEN_API_KEY"
   | "OPENROUTER_API_KEY"
   | "GROQ_API_KEY"
@@ -48,7 +49,7 @@ interface KeyStatus {
   fromEnv: boolean;
 }
 
-type ConnectionKey = "lovable" | "heygen" | "openrouter" | "groq" | "elevenlabs";
+type ConnectionKey = "openai" | "heygen" | "openrouter" | "groq" | "elevenlabs";
 type ToggleableKey = "heygen" | "openrouter" | "groq" | "elevenlabs";
 
 interface LastCheck {
@@ -87,11 +88,12 @@ const SERVICES: {
   docs: string | null;
 }[] = [
   {
-    key: "lovable",
-    title: "هوش مصنوعی لاوبل",
-    description: "موتور پیش‌فرض تولید پاسخ، بردارسازی اسناد و تبدیل گفتار به متن.",
-    secret: null,
-    docs: null,
+    key: "openai",
+    title: "OpenAI (کلید اصلی و الزامی)",
+    description:
+      "موتور تولید پاسخ، بردارسازی اسناد، تبدیل گفتار به متن و صدای جایگزین. بدون این کلید سامانه پاسخ نمی‌دهد.",
+    secret: "OPENAI_API_KEY",
+    docs: "https://platform.openai.com/api-keys",
   },
   {
     key: "heygen",

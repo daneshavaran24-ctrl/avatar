@@ -29,9 +29,10 @@ const TTS_VOICES = [
 ] as const;
 
 const PROVIDER_LABELS: Record<string, string> = {
-  lovable: "هوش مصنوعی داخلی Lovable",
+  openai: "OpenAI (کلید سازمانی)",
   openrouter: "OpenRouter (کلید سازمانی)",
   groq: "Groq Whisper (کلید سازمانی)",
+  none: "تنظیم نشده",
 };
 
 export function AdminBehavior() {
@@ -242,8 +243,8 @@ export function AdminBehavior() {
       <section className="rounded-2xl glass-panel p-5">
         <h3 className="text-sm font-semibold">سرویس‌دهنده‌های فعال</h3>
         <ul className="mt-3 flex flex-col gap-2 text-xs text-muted-foreground">
-          <li>مدل پاسخ‌گویی: {PROVIDER_LABELS[query.data?.providers.chat ?? "lovable"]}</li>
-          <li>تبدیل گفتار به متن: {PROVIDER_LABELS[query.data?.providers.stt ?? "lovable"]}</li>
+          <li>مدل پاسخ‌گویی: {PROVIDER_LABELS[query.data?.providers.chat ?? "none"]}</li>
+          <li>تبدیل گفتار به متن: {PROVIDER_LABELS[query.data?.providers.stt ?? "none"]}</li>
           <li>
             آواتار زنده:{" "}
             {query.data?.providers.avatarConfigured

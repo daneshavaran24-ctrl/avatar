@@ -1,6 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { sql } from "@/lib/db/client.server";
 
 export const MANAGED_KEYS = [
   "HEYGEN_API_KEY",
@@ -13,11 +12,6 @@ export const MANAGED_KEYS = [
 ] as const;
 
 export type ManagedKeyName = (typeof MANAGED_KEYS)[number];
-
-/** Untyped view of the admin client: provider_keys is server-only. */
-function table() {
-  return (supabaseAdmin as unknown as SupabaseClient).from("provider_keys");
-}
 
 function encryptionKey(): Buffer {
   const raw = process.env["RAVI_KEY_SECRET"];
@@ -47,8 +41,10 @@ function decrypt(stored: string): string | null {
 export async function loadStoredKeys(): Promise<Partial<Record<ManagedKeyName, string>>> {
   const out: Partial<Record<ManagedKeyName, string>> = {};
   try {
-    const { data } = await table().select("name, value_ciphertext");
-    for (const row of (data ?? []) as { name: string; value_ciphertext: string }[]) {
+    const rows = await sql<{ name: string; value_ciphertext: string }[]>`
+      SELECT name, value_ciphertext FROM provider_keys
+    `;
+    for (const row of rows) {
       if (!(MANAGED_KEYS as readonly string[]).includes(row.name)) continue;
       const value = decrypt(row.value_ciphertext);
       if (value) out[row.name as ManagedKeyName] = value;
@@ -60,17 +56,25 @@ export async function loadStoredKeys(): Promise<Partial<Record<ManagedKeyName, s
 }
 
 export async function saveStoredKey(name: ManagedKeyName, value: string) {
-  const { error } = await table().upsert(
-    { name, value_ciphertext: encrypt(value.trim()), updated_at: new Date().toISOString() },
-    { onConflict: "name" },
-  );
-  if (error) throw new Error("ذخیرهٔ کلید ناموفق بود.");
+  try {
+    await sql`
+      INSERT INTO provider_keys (name, value_ciphertext, updated_at)
+      VALUES (${name}, ${encrypt(value.trim())}, now())
+      ON CONFLICT (name) DO UPDATE
+        SET value_ciphertext = EXCLUDED.value_ciphertext, updated_at = now()
+    `;
+  } catch {
+    throw new Error("ذخیرهٔ کلید ناموفق بود.");
+  }
   return { ok: true as const };
 }
 
 export async function deleteStoredKey(name: ManagedKeyName) {
-  const { error } = await table().delete().eq("name", name);
-  if (error) throw new Error("حذف کلید ناموفق بود.");
+  try {
+    await sql`DELETE FROM provider_keys WHERE name = ${name}`;
+  } catch {
+    throw new Error("حذف کلید ناموفق بود.");
+  }
   return { ok: true as const };
 }
 

@@ -1,6 +1,6 @@
-import type { Database } from "@/integrations/supabase/types";
+import type { AppSettings } from "@/lib/db/schema";
 
-export type AppSettings = Database["public"]["Tables"]["app_settings"]["Row"];
+export type { AppSettings };
 
 const TONE_INSTRUCTIONS: Record<string, string> = {
   PROFESSIONAL_FRIENDLY:

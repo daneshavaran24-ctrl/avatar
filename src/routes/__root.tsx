@@ -7,10 +7,9 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 
@@ -43,10 +42,6 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     Array.from(error.message || error.name).reduce((hash, character) =>
       (hash * 31 + (character.codePointAt(0) ?? 0)) | 0, 0),
   ).toString(36).toUpperCase()}`;
-  useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">

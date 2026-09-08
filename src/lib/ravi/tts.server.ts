@@ -1,5 +1,5 @@
-import { gatewayFetch } from "@/lib/ai-gateway.server";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { sql } from "@/lib/db/client.server";
+import { providerConfig } from "./providers.server";
 import { splitSpeechChunks, toSpeechText } from "./persian-speech";
 import {
   MAX_SPEECH_CHUNK_CHARS,
@@ -11,13 +11,14 @@ import {
 } from "./constants";
 
 /**
- * Persian speech synthesis through the Lovable AI Gateway. The browser's own
- * `speechSynthesis` rarely ships a Persian voice, so answers used to be read
- * with a foreign accent; this path returns natural Persian audio on every
- * device. Audio is returned as base64 MP3 per chunk so playback can start on
- * the first sentence group instead of waiting for the whole answer.
+ * Persian speech synthesis. The browser's own `speechSynthesis` rarely ships a
+ * Persian voice, so answers used to be read with a foreign accent; this path
+ * returns natural Persian audio on every device. ElevenLabs is preferred when
+ * configured, with OpenAI as the fallback. Audio is returned as base64 MP3 per
+ * chunk so playback can start on the first sentence group instead of waiting
+ * for the whole answer.
  */
-export const TTS_MODEL = "openai/gpt-4o-mini-tts";
+export const TTS_MODEL = "gpt-4o-mini-tts";
 
 /**
  * دستورالعمل تلفظ فارسی برای مدل‌های TTS.
@@ -42,17 +43,11 @@ export interface TtsSettings {
  */
 export async function ttsSettings(): Promise<TtsSettings> {
   try {
-    const { data, error } = await supabaseAdmin
-      .from("app_settings")
-      .select("tts_voice, tts_speed")
-      .limit(1)
-      .maybeSingle();
+    const [data] = await sql<{ tts_voice: string | null; tts_speed: number | null }[]>`
+      SELECT tts_voice, tts_speed FROM app_settings LIMIT 1
+    `;
 
-    if (error) {
-      console.error("[TTS] Failed to load settings:", error.message);
-    }
-
-    const row = (data ?? {}) as { tts_voice?: string | null; tts_speed?: number | null };
+    const row: { tts_voice?: string | null; tts_speed?: number | null } = data ?? {};
     const speed = Number(row.tts_speed ?? DEFAULT_TTS_SPEED) || DEFAULT_TTS_SPEED;
 
     return {
@@ -101,7 +96,7 @@ function toBase64(bytes: ArrayBuffer): string {
  *
  * Priority:
  * 1. ElevenLabs Multilingual v2 (best Persian quality, no accent)
- * 2. Lovable AI Gateway (OpenAI TTS with Persian instructions)
+ * 2. OpenAI TTS (with Persian delivery instructions)
  * 3. Throws error if both fail
  *
  * @param text Text to synthesize (will be normalized for speech)
@@ -129,7 +124,7 @@ export async function synthesizePersian(
     if (eleven) return eleven;
   } catch (error) {
     elevenError = error instanceof Error ? error : new Error(String(error));
-    console.error("[TTS] ElevenLabs failed, falling back to gateway:", {
+    console.error("[TTS] ElevenLabs failed, falling back to OpenAI:", {
       error: elevenError.message,
       text: spoken.slice(0, 50),
       speed: settings.speed,
@@ -137,14 +132,24 @@ export async function synthesizePersian(
   }
 
   try {
+    const config = await providerConfig();
+    if (!config.openAiKey) {
+      throw new Error(`${ERROR_TTS_FAILED}: کلید OpenAI برای تولید صدا تنظیم نشده است.`);
+    }
+
     const clampedSpeed = Math.max(MIN_TTS_SPEED, Math.min(MAX_TTS_SPEED, settings.speed));
-    const response = await gatewayFetch("/audio/speech", {
+    const response = await fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.openAiKey}`,
+      },
       body: JSON.stringify({
         model: TTS_MODEL,
         input: spoken,
         voice: settings.voice,
+        // The endpoint accepts free-form delivery notes; this is what keeps the
+        // Persian sounding native rather than transliterated.
         instructions: PERSIAN_INSTRUCTIONS,
         speed: clampedSpeed,
         response_format: "mp3",
@@ -153,19 +158,19 @@ export async function synthesizePersian(
     if (response.ok) {
       const audioBuffer = await response.arrayBuffer();
       if (audioBuffer.byteLength === 0) {
-        console.error("[TTS] Gateway returned empty audio buffer");
+        console.error("[TTS] OpenAI returned empty audio buffer");
         throw new Error(`${ERROR_TTS_FAILED}: Empty audio response`);
       }
       return { audio: toBase64(audioBuffer), mime: "audio/mpeg" };
     }
     const detail = (await response.text()).slice(0, 300);
-    console.error("[TTS] Gateway TTS request failed:", {
+    console.error("[TTS] OpenAI TTS request failed:", {
       status: response.status,
       detail: detail.slice(0, 100),
     });
     throw new Error(`${ERROR_TTS_FAILED}_${response.status}: ${detail}`);
   } catch (error) {
-    console.error("[TTS] Gateway TTS fallback failed:", {
+    console.error("[TTS] OpenAI TTS fallback failed:", {
       error: error instanceof Error ? error.message : String(error),
       text: spoken.slice(0, 50),
       model: TTS_MODEL,

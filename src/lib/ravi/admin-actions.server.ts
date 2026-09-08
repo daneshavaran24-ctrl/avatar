@@ -1,8 +1,9 @@
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { sql } from "@/lib/db/client.server";
 import { loadSettings } from "./pipeline.server";
 import { deleteDocument, ingestPdf, reindexDocument } from "./ingest.server";
 import { providerConfig, chatProviderName, sttProviderName } from "./providers.server";
 import type { SettingsInput } from "./validators";
+import type { AppSettings } from "@/lib/db/schema";
 
 export async function readSettings() {
   const settings = await loadSettings();
@@ -19,23 +20,40 @@ export async function readSettings() {
 
 export async function adminUpdateSettings(input: SettingsInput) {
   const current = await loadSettings();
-  const { data, error } = await supabaseAdmin
-    .from("app_settings")
-    .update({ ...input, updated_at: new Date().toISOString() })
-    .eq("id", current.id)
-    .select("*")
-    .single();
-  if (error || !data) throw new Error("ذخیرهٔ تنظیمات ناموفق بود.");
+  // Columns come from settingsSchema, so the spread cannot reach a column the
+  // validator does not already allow.
+  const columns = Object.keys(input) as (keyof SettingsInput)[];
+  const [data] = await sql<AppSettings[]>`
+    UPDATE app_settings
+    SET ${sql(input, ...columns)}, updated_at = now()
+    WHERE id = ${current.id}
+    RETURNING *
+  `;
+  if (!data) throw new Error("ذخیرهٔ تنظیمات ناموفق بود.");
   return data;
 }
 
 export async function adminListDocuments() {
-  const { data, error } = await supabaseAdmin
-    .from("knowledge_documents")
-    .select("id, title, status, chunk_count, error_message, created_at, updated_at, version")
-    .order("created_at", { ascending: false });
-  if (error) throw new Error("دریافت فهرست اسناد ناموفق بود.");
-  return data;
+  try {
+    return await sql<
+      {
+        id: string;
+        title: string;
+        status: string;
+        chunk_count: number;
+        error_message: string | null;
+        created_at: string;
+        updated_at: string;
+        version: number;
+      }[]
+    >`
+      SELECT id, title, status, chunk_count, error_message, created_at, updated_at, version
+      FROM knowledge_documents
+      ORDER BY created_at DESC
+    `;
+  } catch {
+    throw new Error("دریافت فهرست اسناد ناموفق بود.");
+  }
 }
 
 export async function adminIngestPdf(file: File, title: string) {
@@ -52,42 +70,65 @@ export async function adminReindexDocument(documentId: string) {
 }
 
 export async function adminListSessions() {
-  const { data, error } = await supabaseAdmin
-    .from("conversation_sessions")
-    .select("id, started_at, ended_at, status, client_label")
-    .order("started_at", { ascending: false })
-    .limit(100);
-  if (error) throw new Error("دریافت فهرست گفتگوها ناموفق بود.");
-  return data;
+  try {
+    return await sql<
+      {
+        id: string;
+        started_at: string;
+        ended_at: string | null;
+        status: string;
+        client_label: string | null;
+      }[]
+    >`
+      SELECT id, started_at, ended_at, status, client_label
+      FROM conversation_sessions
+      ORDER BY started_at DESC
+      LIMIT 100
+    `;
+  } catch {
+    throw new Error("دریافت فهرست گفتگوها ناموفق بود.");
+  }
 }
 
 export async function adminListConversation(sessionId: string) {
-  const { data, error } = await supabaseAdmin
-    .from("conversation_messages")
-    .select("id, role, content, source_type, input_mode, latency_ms, created_at")
-    .eq("session_id", sessionId)
-    .order("created_at", { ascending: true });
-  if (error) throw new Error("دریافت متن گفتگو ناموفق بود.");
-  return data;
+  try {
+    return await sql<
+      {
+        id: string;
+        role: string;
+        content: string;
+        source_type: string | null;
+        input_mode: string | null;
+        latency_ms: number | null;
+        created_at: string;
+      }[]
+    >`
+      SELECT id, role, content, source_type, input_mode, latency_ms, created_at
+      FROM conversation_messages
+      WHERE session_id = ${sessionId}
+      ORDER BY created_at ASC
+    `;
+  } catch {
+    throw new Error("دریافت متن گفتگو ناموفق بود.");
+  }
 }
 
 export async function adminOverview() {
-  const [sessions, messages, documents, events] = await Promise.all([
-    supabaseAdmin.from("conversation_sessions").select("id", { count: "exact", head: true }),
-    supabaseAdmin
-      .from("conversation_messages")
-      .select("source_type, latency_ms")
-      .eq("role", "assistant")
-      .limit(1000),
-    supabaseAdmin.from("knowledge_documents").select("chunk_count, status"),
-    supabaseAdmin
-      .from("provider_events")
-      .select("success")
-      .order("created_at", { ascending: false })
-      .limit(200),
+  const [sessionCounts, assistantMessages, documents, providerEvents] = await Promise.all([
+    sql<{ count: string }[]>`SELECT count(*)::text AS count FROM conversation_sessions`,
+    sql<{ source_type: string | null; latency_ms: number | null }[]>`
+      SELECT source_type, latency_ms
+      FROM conversation_messages
+      WHERE role = 'assistant'
+      LIMIT 1000
+    `,
+    sql<{ chunk_count: number; status: string }[]>`
+      SELECT chunk_count, status FROM knowledge_documents
+    `,
+    sql<{ success: boolean }[]>`
+      SELECT success FROM provider_events ORDER BY created_at DESC LIMIT 200
+    `,
   ]);
-
-  const assistantMessages = messages.data ?? [];
   const latencies = assistantMessages
     .map((message) => message.latency_ms)
     .filter((value): value is number => typeof value === "number")
@@ -99,17 +140,16 @@ export async function adminOverview() {
     return accumulator;
   }, {});
 
-  const providerEvents = events.data ?? [];
   const failures = providerEvents.filter((event) => !event.success).length;
 
   return {
-    sessionCount: sessions.count ?? 0,
+    sessionCount: Number(sessionCounts[0]?.count ?? 0),
     answerCount: assistantMessages.length,
     medianLatencyMs: latencies.length ? latencies[Math.floor(latencies.length / 2)] : null,
     p95LatencyMs: latencies.length ? latencies[Math.floor(latencies.length * 0.95)] : null,
     bySource,
-    documentCount: documents.data?.length ?? 0,
-    chunkCount: (documents.data ?? []).reduce((sum, doc) => sum + (doc.chunk_count ?? 0), 0),
+    documentCount: documents.length,
+    chunkCount: documents.reduce((sum, doc) => sum + (doc.chunk_count ?? 0), 0),
     providerErrorRate: providerEvents.length
       ? Math.round((failures / providerEvents.length) * 100)
       : 0,

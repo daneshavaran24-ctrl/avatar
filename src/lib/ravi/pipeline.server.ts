@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { sql } from "@/lib/db/client.server";
 import type { AnswerResult, InputMode, SourceType } from "./types";
 import { normalizePersian } from "./persian";
 import { buildSystemPrompt, type AppSettings } from "./persona.server";
@@ -9,6 +9,7 @@ import {
   embedText,
   ProviderError,
 } from "./providers.server";
+import { matchKnowledgeChunks } from "./vector.server";
 
 /** Evidence gate thresholds — tuned against the admin evaluation set, not fixed dogma. */
 const STRONG_EVIDENCE = 0.52;
@@ -24,14 +25,34 @@ interface RetrievedChunk {
 }
 
 export async function loadSettings(): Promise<AppSettings> {
-  const { data, error } = await supabaseAdmin
-    .from("app_settings")
-    .select("*")
-    .order("updated_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (error || !data) throw new Error("تنظیمات سامانه در دسترس نیست.");
-  return data as AppSettings;
+  const [data] = await sql<AppSettings[]>`
+    SELECT * FROM app_settings ORDER BY updated_at ASC LIMIT 1
+  `;
+  if (!data) throw new Error("تنظیمات سامانه در دسترس نیست.");
+  return data;
+}
+
+/**
+ * Recent turns for a session, read from storage rather than taken from the
+ * caller. The public endpoint is open to the internet, so client-supplied
+ * history would be both a cost amplifier and a prompt-injection vector.
+ */
+export async function loadRecentHistory(
+  sessionId: string,
+  limit = 6,
+): Promise<{ role: "user" | "assistant"; content: string }[]> {
+  const rows = await sql<{ role: string; content: string }[]>`
+    SELECT role, content
+    FROM conversation_messages
+    WHERE session_id = ${sessionId}
+    ORDER BY created_at DESC
+    LIMIT ${limit}
+  `;
+  return rows
+    .reverse()
+    .filter((row): row is { role: "user" | "assistant"; content: string } =>
+      row.role === "user" || row.role === "assistant",
+    );
 }
 
 async function logProviderEvent(
@@ -42,14 +63,17 @@ async function logProviderEvent(
   success: boolean,
   errorCode?: string,
 ) {
-  await supabaseAdmin.from("provider_events").insert({
-    session_id: sessionId,
-    provider,
-    operation,
-    latency_ms: Math.round(performance.now() - startedAt),
-    success,
-    error_code: errorCode ?? null,
-  });
+  await sql`
+    INSERT INTO provider_events (session_id, provider, operation, latency_ms, success, error_code)
+    VALUES (
+      ${sessionId},
+      ${provider},
+      ${operation},
+      ${Math.round(performance.now() - startedAt)},
+      ${success},
+      ${errorCode ?? null}
+    )
+  `;
 }
 
 async function retrieve(
@@ -59,17 +83,13 @@ async function retrieve(
   const startedAt = performance.now();
   try {
     const embedding = await embedText(question);
-    const { data, error } = await supabaseAdmin.rpc("match_knowledge_chunks", {
-      query_embedding: JSON.stringify(embedding),
-      match_count: MAX_CHUNKS,
-    });
-    if (error) throw new Error(error.message);
-    await logProviderEvent(sessionId, "lovable-ai", "embedding", startedAt, true);
-    return (data ?? []) as unknown as RetrievedChunk[];
+    const matches = await matchKnowledgeChunks(embedding, MAX_CHUNKS);
+    await logProviderEvent(sessionId, "openai", "embedding", startedAt, true);
+    return matches;
   } catch (error) {
     await logProviderEvent(
       sessionId,
-      "lovable-ai",
+      "openai",
       "embedding",
       startedAt,
       false,
@@ -101,11 +121,13 @@ export async function runAnswerPipeline(params: {
   sessionId: string | null;
   question: string;
   inputMode: InputMode;
-  history: { role: "user" | "assistant"; content: string }[];
 }): Promise<AnswerResult> {
   const startedAt = performance.now();
   const question = normalizePersian(params.question);
   const settings = await loadSettings();
+
+  // Read before recording this turn, so the prompt sees prior turns only.
+  const history = params.sessionId ? await loadRecentHistory(params.sessionId) : [];
 
   await recordMessage(params.sessionId, {
     role: "user",
@@ -155,7 +177,7 @@ export async function runAnswerPipeline(params: {
     const result = await chatComplete(
       [
         { role: "system", content: buildSystemPrompt(settings, context) },
-        ...params.history.slice(-6),
+        ...history,
         { role: "user", content: question },
       ],
       provider === "openrouter" && settings.openrouter_model
@@ -199,15 +221,17 @@ export async function runAnswerPipeline(params: {
   });
 
   if (messageId && used.length) {
-    await supabaseAdmin.from("retrieval_events").insert(
-      used.map((chunk, index) => ({
-        message_id: messageId,
-        document_id: chunk.document_id,
-        chunk_id: chunk.chunk_id,
-        score: chunk.similarity,
-        rank: index + 1,
-      })),
-    );
+    await sql`
+      INSERT INTO retrieval_events ${sql(
+        used.map((chunk, index) => ({
+          message_id: messageId,
+          document_id: chunk.document_id,
+          chunk_id: chunk.chunk_id,
+          score: chunk.similarity,
+          rank: index + 1,
+        })),
+      )}
+    `;
   }
 
   return { answer, sourceType, latencyMs, messageId };
@@ -226,20 +250,24 @@ async function recordMessage(
   },
 ): Promise<string | null> {
   if (!sessionId) return null;
-  const { data, error } = await supabaseAdmin
-    .from("conversation_messages")
-    .insert({
-      session_id: sessionId,
-      role: message.role,
-      content: message.content,
-      source_type: message.source_type ?? null,
-      input_mode: message.input_mode ?? null,
-      latency_ms: message.latency_ms ?? null,
-      token_input: message.token_input ?? null,
-      token_output: message.token_output ?? null,
-    })
-    .select("id")
-    .single();
-  if (error) return null;
-  return data.id;
+  try {
+    const [row] = await sql<{ id: string }[]>`
+      INSERT INTO conversation_messages
+        (session_id, role, content, source_type, input_mode, latency_ms, token_input, token_output)
+      VALUES (
+        ${sessionId},
+        ${message.role},
+        ${message.content},
+        ${message.source_type ?? null},
+        ${message.input_mode ?? null},
+        ${message.latency_ms ?? null},
+        ${message.token_input ?? null},
+        ${message.token_output ?? null}
+      )
+      RETURNING id
+    `;
+    return row?.id ?? null;
+  } catch {
+    return null;
+  }
 }
