@@ -1,7 +1,11 @@
 export interface AvatarStreamerHandle {
   speak: (text: string) => Promise<void>;
   interrupt: () => Promise<void>;
+  startListening: () => void;
+  stopListening: () => void;
 }
+
+export type ConnectionQualityLevel = "GOOD" | "BAD" | "UNKNOWN";
 
 export interface AvatarCredentials {
   token: string;

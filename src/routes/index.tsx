@@ -5,7 +5,7 @@ import { Info, Loader2, Mic, MicOff, MessageSquare, Send, ShieldCheck, Settings2
 
 import { AvatarErrorBoundary } from "@/components/ravi/AvatarErrorBoundary";
 import { AvatarOrb, SpeakingBars } from "@/components/ravi/AvatarOrb";
-import type { AvatarStreamerHandle } from "@/components/ravi/AvatarStreamer";
+import type { AvatarStreamerHandle, ConnectionQualityLevel } from "@/components/ravi/AvatarStreamer";
 import { Transcript } from "@/components/ravi/Transcript";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -113,6 +113,7 @@ function RaviStage() {
   const [avatarAttempt, setAvatarAttempt] = useState(0);
   const [avatarInfoOpen, setAvatarInfoOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [connectionQuality, setConnectionQuality] = useState<ConnectionQualityLevel>("UNKNOWN");
 
   const sessionIdRef = useRef<string | null>(null);
   const streamerRef = useRef<AvatarStreamerHandle | null>(null);
@@ -307,6 +308,7 @@ function RaviStage() {
 
   const toggleMic = useCallback(async () => {
     if (voice.recording) {
+      streamerRef.current?.stopListening();
       const blob = await voice.stop();
       setState("THINKING");
       if (!blob) {
@@ -343,6 +345,7 @@ function RaviStage() {
 
     await voice.start();
     setState("LISTENING");
+    streamerRef.current?.startListening();
   }, [submitQuestion, transcribeFn, voice]);
 
   return (
@@ -396,6 +399,7 @@ function RaviStage() {
                       setState("IDLE");
                     }}
                     onSpeakingChange={(speaking) => setState(speaking ? "SPEAKING" : "IDLE")}
+                    onConnectionQualityChange={setConnectionQuality}
                     onError={(message) => {
                       console.error("Avatar session failed", { message });
                       setAvatarLive(false);
@@ -470,9 +474,29 @@ function RaviStage() {
             <div className="mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-xl glass-panel p-4 text-xs">
               <div className="flex items-center justify-between gap-2">
                 <p className="font-semibold">انتخاب فعال این نشست</p>
-                <span className="text-muted-foreground">
-                  {credentials.vendor === "liveavatar" ? "LiveAvatar" : "HeyGen"}
-                </span>
+                <div className="flex items-center gap-2">
+                  {avatarLive && (
+                    <span
+                      className={`inline-block size-2 rounded-full ${
+                        connectionQuality === "GOOD"
+                          ? "bg-green-500"
+                          : connectionQuality === "BAD"
+                            ? "bg-red-500"
+                            : "bg-yellow-500"
+                      }`}
+                      title={
+                        connectionQuality === "GOOD"
+                          ? "کیفیت اتصال: خوب"
+                          : connectionQuality === "BAD"
+                            ? "کیفیت اتصال: ضعیف"
+                            : "کیفیت اتصال: نامشخص"
+                      }
+                    />
+                  )}
+                  <span className="text-muted-foreground">
+                    {credentials.vendor === "liveavatar" ? "LiveAvatar" : "HeyGen"}
+                  </span>
+                </div>
               </div>
               <dl className="mt-3 grid gap-2">
                 <div><dt className="text-muted-foreground">چهره</dt><dd className="mt-1">{credentials.avatarName || "بدون نام"}</dd></div>

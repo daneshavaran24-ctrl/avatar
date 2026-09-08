@@ -62,6 +62,12 @@ const HeygenStreamer = forwardRef<AvatarStreamerHandle, Props>(function HeygenSt
         /* interrupting an idle avatar is not an error */
       }
     },
+    startListening() {
+      /* HeyGen streaming API has no listening pose command */
+    },
+    stopListening() {
+      /* HeyGen streaming API has no listening pose command */
+    },
   }));
 
   useEffect(() => {

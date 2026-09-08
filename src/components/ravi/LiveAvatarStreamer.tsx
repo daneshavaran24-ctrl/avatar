@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 
-import type { AvatarStreamerHandle } from "./avatar-streamer-types";
+import type { AvatarStreamerHandle, ConnectionQualityLevel } from "./avatar-streamer-types";
 import { loadLiveAvatarSdk } from "./liveavatar-loader";
 import { useChromaKey } from "./useChromaKey";
 
@@ -10,17 +10,24 @@ interface Props {
   onReady: () => void;
   onSpeakingChange: (speaking: boolean) => void;
   onError: (message: string) => void;
+  onConnectionQualityChange?: (quality: ConnectionQualityLevel) => void;
 }
 
 type AnySession = {
   attach: (el: HTMLVideoElement) => void;
-  repeat: (text: string) => void;
+  message: (text: string) => string;
+  repeat: (text: string) => string;
   interrupt: () => void;
+  startListening: () => string;
+  stopListening: () => string;
+  keepAlive: () => Promise<void>;
   start: () => Promise<unknown>;
   stop: () => Promise<unknown>;
   on: (event: string, handler: (...args: unknown[]) => void) => void;
   off: (event: string, handler: (...args: unknown[]) => void) => void;
 };
+
+const KEEPALIVE_INTERVAL_MS = 55_000;
 
 /**
  * A LiveAvatar session token is single-use: starting it twice kills the live
@@ -38,17 +45,15 @@ const sessionRegistry: Map<string, SessionEntry> = (globalScope.__raviLiveAvatar
 
 /** Browser-only LiveAvatar (app.liveavatar.com) realtime session. */
 const LiveAvatarStreamer = forwardRef<AvatarStreamerHandle, Props>(function LiveAvatarStreamer(
-  { token, onReady, onSpeakingChange, onError },
+  { token, onReady, onSpeakingChange, onError, onConnectionQualityChange },
   ref,
 ) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const sessionRef = useRef<AnySession | null>(null);
   const [connected, setConnected] = useState(false);
-  // Resolves when the avatar finishes the current sentence, so consecutive
-  // chunks are spoken (and revealed) in step with the mouth instead of being
-  // fired off all at once.
   const pendingSpeakRef = useRef<(() => void) | null>(null);
   const chromaRef = useChromaKey(videoRef, connected);
+  const keepAliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useImperativeHandle(ref, () => ({
     async speak(text: string) {
@@ -64,10 +69,9 @@ const LiveAvatarStreamer = forwardRef<AvatarStreamerHandle, Props>(function Live
           if (pendingSpeakRef.current === finish) pendingSpeakRef.current = null;
           resolve();
         };
-        // Safety net: never stall the conversation if the end event is missed.
         const guard = window.setTimeout(finish, 4000 + text.length * 120);
         pendingSpeakRef.current = finish;
-        session.repeat(text);
+        session.message(text);
       });
     },
     async interrupt() {
@@ -76,6 +80,20 @@ const LiveAvatarStreamer = forwardRef<AvatarStreamerHandle, Props>(function Live
         sessionRef.current?.interrupt();
       } catch {
         /* interrupting an idle avatar is not an error */
+      }
+    },
+    startListening() {
+      try {
+        sessionRef.current?.startListening();
+      } catch {
+        /* avatar may not be in a state that accepts the command */
+      }
+    },
+    stopListening() {
+      try {
+        sessionRef.current?.stopListening();
+      } catch {
+        /* avatar may not be in a state that accepts the command */
       }
     },
   }));
@@ -87,8 +105,6 @@ const LiveAvatarStreamer = forwardRef<AvatarStreamerHandle, Props>(function Live
     void (async () => {
       let mod: typeof import("@heygen/liveavatar-web-sdk");
       try {
-        // Loaded here (not at module scope) with an automatic vendor-build
-        // fallback, so a bundling failure never kills the live session.
         mod = await loadLiveAvatarSdk();
       } catch (error) {
         if (!cancelled) {
@@ -102,7 +118,6 @@ const LiveAvatarStreamer = forwardRef<AvatarStreamerHandle, Props>(function Live
       }
       if (cancelled) return;
       const { AgentEventsEnum, LiveAvatarSession, SessionEvent } = mod;
-
 
       let entry = sessionRegistry.get(token);
       const isNew = !entry;
@@ -122,6 +137,9 @@ const LiveAvatarStreamer = forwardRef<AvatarStreamerHandle, Props>(function Live
         if (!cancelled) {
           setConnected(true);
           onReady();
+          keepAliveRef.current = setInterval(() => {
+            session.keepAlive().catch(() => undefined);
+          }, KEEPALIVE_INTERVAL_MS);
         }
       };
       const handleDisconnected = () => setConnected(false);
@@ -130,11 +148,18 @@ const LiveAvatarStreamer = forwardRef<AvatarStreamerHandle, Props>(function Live
         onSpeakingChange(false);
         pendingSpeakRef.current?.();
       };
+      const handleQuality = (quality: unknown) => {
+        const level = String(quality) as ConnectionQualityLevel;
+        onConnectionQualityChange?.(level);
+      };
 
       session.on(SessionEvent.SESSION_STREAM_READY, handleReady);
       session.on(SessionEvent.SESSION_DISCONNECTED, handleDisconnected);
       session.on(AgentEventsEnum.AVATAR_SPEAK_STARTED, handleSpeakStart);
       session.on(AgentEventsEnum.AVATAR_SPEAK_ENDED, handleSpeakEnd);
+      if (onConnectionQualityChange) {
+        session.on(SessionEvent.SESSION_CONNECTION_QUALITY_CHANGED, handleQuality);
+      }
 
       if (isNew) {
         session.start().catch((error: unknown) => {
@@ -150,7 +175,6 @@ const LiveAvatarStreamer = forwardRef<AvatarStreamerHandle, Props>(function Live
           }
         });
       } else if (videoRef.current) {
-        // Remount onto an already-running session.
         session.attach(videoRef.current);
         setConnected(true);
         onReady();
@@ -161,10 +185,16 @@ const LiveAvatarStreamer = forwardRef<AvatarStreamerHandle, Props>(function Live
         session.off(SessionEvent.SESSION_DISCONNECTED, handleDisconnected);
         session.off(AgentEventsEnum.AVATAR_SPEAK_STARTED, handleSpeakStart);
         session.off(AgentEventsEnum.AVATAR_SPEAK_ENDED, handleSpeakEnd);
+        if (onConnectionQualityChange) {
+          session.off(SessionEvent.SESSION_CONNECTION_QUALITY_CHANGED, handleQuality);
+        }
+        if (keepAliveRef.current) {
+          clearInterval(keepAliveRef.current);
+          keepAliveRef.current = null;
+        }
         const current = sessionRegistry.get(token);
         if (current) current.refs -= 1;
         sessionRef.current = null;
-        // Give an immediate remount a chance to reclaim the session before teardown.
         window.setTimeout(() => {
           const latest = sessionRegistry.get(token);
           if (latest && latest.refs <= 0) {
