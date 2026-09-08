@@ -19,13 +19,16 @@ FROM node:20-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Migrations and the admin seeder ship with the image so they can be run with
-# `liara shell` against the attached database.
 COPY --from=build /app/.output ./.output
-COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/migrations ./migrations
 COPY --from=build /app/scripts ./scripts
+
+# Only the migration/seed scripts need runtime deps (postgres, bcryptjs, tsx).
+# Nitro bundles everything the server needs into .output/, so the full
+# node_modules from the build stage is not copied — that saves ~400 MB and
+# minutes of deploy time.
+RUN npm install --no-save postgres bcryptjs tsx
 
 EXPOSE 3000
 CMD ["node", ".output/server/index.mjs"]
