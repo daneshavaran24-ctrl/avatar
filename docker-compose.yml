@@ -1,0 +1,19 @@
+# Local Postgres for development.
+#
+# The pgvector image exercises the indexed retrieval path. To test the array
+# fallback that a managed Postgres without the extension will use, swap the
+# image for plain postgres:16 against a fresh volume and re-run db:migrate.
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ravi
+    ports:
+      - "5432:5432"
+    volumes:
+      - ravi-postgres:/var/lib/postgresql/data
+
+volumes:
+  ravi-postgres:

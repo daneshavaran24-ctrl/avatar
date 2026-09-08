@@ -1,445 +1,183 @@
 # راهنمای استقرار (Deployment) راوی‌استان
 
-این راهنما مراحل استقرار برنامه راوی‌استان را در محیط‌های مختلف توضیح می‌دهد.
+هدف این راهنما استقرار روی **لیارا** است، اما هر میزبانی که Docker یا Node.js اجرا کند کار می‌کند.
+
+---
+
+## 📋 پیش‌نیازها
+
+- یک پایگاه دادهٔ **PostgreSQL** (روی لیارا: افزونهٔ دیتابیس)
+- کلید **OpenAI** (الزامی — بدون آن سامانه پاسخ نمی‌دهد)
+- کلید **HeyGen یا LiveAvatar** (اختیاری، برای آواتار زنده)
+
+---
+
+## 🚀 استقرار روی لیارا
+
+### مرحله ۱: ساخت پایگاه داده
+
+از پنل لیارا یک دیتابیس PostgreSQL بسازید و رشتهٔ اتصال (`DATABASE_URL`) را از صفحهٔ همان دیتابیس بردارید.
+
+> **نکته:** برخی سرویس‌های مدیریت‌شده اجازهٔ `CREATE EXTENSION vector` نمی‌دهند. لازم نیست کاری کنید — مهاجرت این را تشخیص می‌دهد و در نبود pgvector، جست‌وجوی برداری در خود برنامه انجام می‌شود. خروجی `db:migrate` می‌گوید کدام مسیر فعال شده است.
+
+### مرحله ۲: تنظیم متغیرهای محیطی
+
+در بخش تنظیمات برنامه در لیارا:
+
+```env
+DATABASE_URL=postgres://user:pass@host:5432/dbname
+SESSION_SECRET=<openssl rand -hex 32>
+RAVI_KEY_SECRET=<openssl rand -hex 32>
+OPENAI_API_KEY=sk-...
+```
+
+اختیاری: `HEYGEN_API_KEY`، `ELEVENLABS_API_KEY`، `DEEPGRAM_API_KEY`، `GROQ_API_KEY`، `OPENROUTER_API_KEY` — این‌ها را می‌توانید بعداً از پنل مدیریت هم وارد کنید.
+
+⚠️ **`RAVI_KEY_SECRET` را بعداً عوض نکنید.** کلیدهایی که از پنل ذخیره شده‌اند با آن رمزنگاری می‌شوند و با تغییرش دیگر خوانده نمی‌شوند.
+
+⚠️ **`NODE_ENV=development` را روی سرور تنظیم نکنید.** باعث می‌شود نسخهٔ توسعهٔ JSX در بیلد قرار بگیرد و همهٔ صفحه‌ها با خطای رندر بالا نیایند.
+
+### مرحله ۳: استقرار
+
+```bash
+npm install -g @liara/cli
+liara login
+liara deploy
+```
+
+`liara.json` موجود در مخزن، پلتفرم را روی `docker` و پورت را روی `3000` تنظیم می‌کند و `Dockerfile` بیلد را انجام می‌دهد.
+
+> **بررسی کنید:** ساختار `liara.json` ممکن است با نسخهٔ فعلی لیارا تفاوت داشته باشد. اگر استقرار پذیرفته نشد، یک‌بار `liara init` بزنید و مقادیر فایل تولیدشده را با این فایل مقایسه کنید.
+
+### مرحله ۴: ساخت جدول‌ها و حساب مدیر
+
+```bash
+liara shell
+
+# داخل کانتینر:
+npm run db:migrate
+ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='یک-گذرواژهٔ-بلند' npm run db:seed-admin
+```
+
+اگر دیتابیس از بیرون هم در دسترس است، می‌توانید همین دو دستور را روی دستگاه خودتان با همان `DATABASE_URL` اجرا کنید.
+
+### مرحله ۵: بررسی
+
+1. صفحهٔ اصلی را در یک پنجرهٔ ناشناس باز کنید — باید **بدون هیچ ورودی** بالا بیاید و بتوانید گفتگو کنید.
+2. `/auth` → با حسابی که ساختید وارد شوید.
+3. پنل مدیریت → تب «کلیدها و آواتار» → کلید HeyGen را وارد و «بررسی اتصال» را بزنید.
+4. تب «پایگاه دانش» → یک PDF فارسی بارگذاری کنید و منتظر وضعیت `READY` بمانید.
+5. برگردید به صفحهٔ اصلی و پرسشی از همان سند بپرسید.
+
+---
+
+## 🔐 مدل دسترسی پس از استقرار
+
+- صفحهٔ اصلی **عمومی** است؛ هر کسی بدون حساب کاربری می‌تواند گفتگو کند.
+- `/auth` و `/admin` فقط با حساب مدیر باز می‌شوند.
+- **ثبت‌نام عمومی وجود ندارد** و صفحهٔ «فراموشی گذرواژه» هم وجود ندارد.
+
+### بازیابی گذرواژهٔ مدیر
+
+هیچ سرویس ایمیلی در این سامانه پیکربندی نشده و مسیر بازنشانی عمومی هم عمداً حذف شده است. برای بازنشانی، همان دستور ساخت حساب را با ایمیل قبلی و گذرواژهٔ جدید اجرا کنید:
+
+```bash
+ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='گذرواژهٔ-جدید' npm run db:seed-admin
+```
+
+این کار همهٔ نشست‌های فعال آن حساب را هم باطل می‌کند.
+
+---
+
+## 💸 کنترل هزینه
+
+مسیرهای عمومی سقف نرخ دارند (فهرست کامل و متغیرها در [README](README.md#محدودیت-نرخ-درخواست)). دو نکتهٔ مهم:
+
+- **نشست آواتار گران‌ترین تماس است** و اعتبار HeyGen مصرف می‌کند. علاوه بر سقف هر بازدیدکننده، یک سقف روزانه برای کل حساب هست (`RL_AVATAR_GLOBAL_PER_DAY`، پیش‌فرض ۲۰۰). اگر ترافیک واقعی‌تان بیشتر است این عدد را آگاهانه بالا ببرید.
+- سقف هر IP به‌طور پیش‌فرض ۱۵ برابر سقف هر بازدیدکننده است تا کاربران پشت یک IP مشترک مسدود نشوند. اگر همهٔ کاربران شما از یک شبکهٔ سازمانی می‌آیند، `RL_IP_MULTIPLIER` را بالاتر ببرید.
+
+---
+
+## 🐳 استقرار با Docker (هر میزبان دیگر)
+
+```bash
+docker build -t ravi-avatar .
+docker run -p 3000:3000 --env-file .env ravi-avatar
+```
+
+برای اجرای مهاجرت‌ها داخل کانتینر:
+
+```bash
+docker run --rm --env-file .env ravi-avatar npm run db:migrate
+```
+
+---
+
+## 🧪 محیط توسعهٔ محلی
+
+```bash
+docker compose up -d          # PostgreSQL با pgvector
+cp .env.example .env          # مقادیر را پر کنید
+npm run db:migrate
+ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='...' npm run db:seed-admin
+npm run dev
+```
+
+برای آزمودن **مسیر جایگزین جست‌وجوی برداری** (همان چیزی که روی یک Postgres بدون pgvector اجرا می‌شود)، تصویر را در `docker-compose.yml` به `postgres:16` تغییر دهید، دیتابیس را از صفر بسازید و دوباره `db:migrate` بزنید؛ باید در خروجی ببینید که مسیر «محاسبه در برنامه» انتخاب شده است.
+
+### آزمون سرتاسری
+
+```bash
+npm run build
+npm start &
+ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='...' npm run test:e2e
+```
+
+این آزمون بررسی می‌کند که صفحهٔ عمومی بدون حساب کار کند، مسیرهای مدیریتی هم برای کاربر ناشناس و هم با کوکی بازدیدکننده بسته باشند، ورود درست کار کند، یک بازدیدکننده نتواند گفتگوی بازدیدکنندهٔ دیگر را بخواند یا ببندد، و سقف نرخ آواتار اعمال شود.
+
+---
 
 ## 🔧 رفع خطای 502 Bad Gateway
 
-اگر با خطای 502 مواجه شدید، این تنظیمات را بررسی کنید:
+**مشکل**: `@lovable.dev/vite-tanstack-config` به‌صورت پیش‌فرض از `preset: "cloudflare"` استفاده می‌کند که با Node.js server سازگار نیست.
 
-### ⭐ راه‌حل اصلی: Override کردن Nitro Preset
-
-**مشکل**: `@lovable.dev/vite-tanstack-config` به صورت پیش‌فرض از `preset: "cloudflare"` استفاده می‌کند که با Node.js server سازگار نیست.
-
-**راه‌حل**: در `vite.config.ts` باید تنظیمات Nitro را override کنید:
+**راه‌حل** (از پیش در `vite.config.ts` اعمال شده — تغییرش ندهید):
 
 ```typescript
-// vite.config.ts
-import { defineConfig } from "@lovable.dev/vite-tanstack-config";
-
-export default defineConfig({
-  // ⭐ کلیدی: Override کردن Nitro preset
-  nitro: {
-    preset: "node-server", // تغییر از cloudflare به node-server
-    devServer: {
-      host: "0.0.0.0",
-      port: 5173,
-    },
-    runtimeConfig: {
-      nitro: {
-        port: process.env.PORT || 3000,
-        host: "0.0.0.0", // ⚠️ بسیار مهم!
-      },
+nitro: {
+  preset: "node-server",
+  runtimeConfig: {
+    nitro: {
+      port: process.env.PORT || 3000,
+      host: "0.0.0.0",   // ⚠️ بسیار مهم
     },
   },
-
-  tanstackStart: {
-    server: { entry: "server" },
-  },
-
-  vite: {
-    // ... باقی تنظیمات
-  },
-});
+},
 ```
 
-### چرا 0.0.0.0 مهم است؟
+### چرا `0.0.0.0` مهم است؟
 
 ```typescript
-host: "0.0.0.0"      // ✅ صحیح - قابل دسترسی از همه شبکه‌ها
-// host: "localhost"  // ❌ اشتباه - فقط داخل container
-// host: "127.0.0.1"  // ❌ اشتباه - فقط loopback
+host: "0.0.0.0"      // ✅ قابل دسترسی از بیرون کانتینر
+// host: "localhost"  // ❌ فقط داخل کانتینر
+// host: "127.0.0.1"  // ❌ فقط loopback
 ```
 
-### 3. متغیرهای محیطی
+اگر باز هم 502 گرفتید:
 
-اطمینان حاصل کنید که تمام متغیرهای محیطی لازم تنظیم شده‌اند:
-
-**الزامی**:
-```env
-PORT=3000                              # پورت (معمولاً توسط platform تنظیم می‌شود)
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-LOVABLE_API_KEY=your-lovable-api-key
-RAVI_KEY_SECRET=your-encryption-secret-32chars
-```
-
-**اختیاری (برای قابلیت‌های پیشرفته)**:
-```env
-HEYGEN_API_KEY=your-heygen-key
-ELEVENLABS_API_KEY=your-elevenlabs-key
-OPENROUTER_API_KEY=your-openrouter-key
-GROQ_API_KEY=your-groq-key
-DEEPGRAM_API_KEY=your-deepgram-key
-OPENAI_API_KEY=your-openai-key
-```
+1. لاگ برنامه را ببینید؛ خطای اتصال به پایگاه داده رایج‌ترین علت است.
+2. مطمئن شوید مهاجرت‌ها اجرا شده‌اند.
+3. مطمئن شوید `SESSION_SECRET` و `RAVI_KEY_SECRET` تنظیم شده‌اند؛ نبودشان باعث خطای سمت سرور می‌شود.
 
 ---
 
-## 📦 استقرار در Lovable Cloud
-
-### مرحله 1: Build
-
-```bash
-npm run build
-```
-
-یا
-
-```bash
-bun run build
-```
-
-### مرحله 2: بررسی خروجی Build
-
-پوشه `.output/` باید ایجاد شده باشد:
-
-```
-.output/
-├── public/        # فایل‌های استاتیک
-└── server/
-    └── index.mjs  # سرور Node.js
-```
-
-### مرحله 3: تنظیم متغیرهای محیطی
-
-در پنل Lovable Cloud:
-
-1. به **Settings** > **Environment Variables** بروید
-2. تمام متغیرهای بالا را اضافه کنید
-3. **مهم**: `PORT` را تنظیم نکنید (platform خودکار تنظیم می‌کند)
-
-### مرحله 4: Deploy
-
-Lovable Cloud به صورت خودکار:
-- Repository را clone می‌کند
-- `npm run build` یا `bun run build` را اجرا می‌کند
-- `npm start` یا `bun start` را اجرا می‌کند
-- پورت را به صورت خودکار تنظیم می‌کند
-
-### عیب‌یابی در Lovable
-
-اگر 502 دریافت کردید:
-
-1. **لاگ‌ها را بررسی کنید**:
-   - به صفحه **Events** یا **Logs** بروید
-   - دنبال پیام‌های خطا بگردید
-
-2. **Health Check**:
-   ```
-   GET https://your-app.lovable.app/
-   ```
-   باید status 200 برگرداند
-
-3. **متغیرهای محیطی**:
-   - `SUPABASE_URL` و `SUPABASE_SERVICE_ROLE_KEY` را بررسی کنید
-   - `LOVABLE_API_KEY` را بررسی کنید
-
-4. **زمان راه‌اندازی**:
-   - اولین deploy ممکن است 1-2 دقیقه طول بکشد
-   - صبر کنید تا status به `Running` تغییر کند
-
----
-
-## 🐳 استقرار با Docker
-
-### Dockerfile
-
-```dockerfile
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-COPY bun.lockb* ./
-
-# Install dependencies
-RUN npm ci
-
-# Copy source
-COPY . .
-
-# Build
-RUN npm run build
-
-# Production image
-FROM node:20-alpine
-
-WORKDIR /app
-
-# Copy built files
-COPY --from=builder /app/.output ./.output
-COPY --from=builder /app/package.json ./
-
-# Set environment
-ENV NODE_ENV=production
-
-# Expose port
-EXPOSE 3000
-
-# Start server
-CMD ["node", ".output/server/index.mjs"]
-```
-
-### docker-compose.yml
-
-```yaml
-version: '3.8'
-
-services:
-  ravi-stan:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - PORT=3000
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - LOVABLE_API_KEY=${LOVABLE_API_KEY}
-      - RAVI_KEY_SECRET=${RAVI_KEY_SECRET}
-    restart: unless-stopped
-```
-
-### اجرا
-
-```bash
-# Build image
-docker build -t ravi-stan .
-
-# Run container
-docker run -p 3000:3000 \
-  -e PORT=3000 \
-  -e SUPABASE_URL=your-url \
-  -e SUPABASE_SERVICE_ROLE_KEY=your-key \
-  -e LOVABLE_API_KEY=your-key \
-  -e RAVI_KEY_SECRET=your-secret \
-  ravi-stan
-
-# یا با docker-compose
-docker-compose up -d
-```
-
----
-
-## ☁️ استقرار در Vercel
-
-### vercel.json
-
-```json
-{
-  "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": ".output/server/index.mjs"
-    }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  }
-}
-```
-
-### دستورات
-
-```bash
-# Install Vercel CLI
-npm i -g vercel
-
-# Login
-vercel login
-
-# Deploy
-vercel --prod
-```
-
-### تنظیم Environment Variables در Vercel
-
-```bash
-vercel env add SUPABASE_URL
-vercel env add SUPABASE_SERVICE_ROLE_KEY
-vercel env add LOVABLE_API_KEY
-vercel env add RAVI_KEY_SECRET
-```
-
----
-
-## 🚀 استقرار در Railway
-
-### railway.json
-
-```json
-{
-  "build": {
-    "builder": "NIXPACKS"
-  },
-  "deploy": {
-    "startCommand": "npm start",
-    "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 10
-  }
-}
-```
-
-### دستورات
-
-```bash
-# Install Railway CLI
-npm i -g @railway/cli
-
-# Login
-railway login
-
-# Initialize
-railway init
-
-# Add environment variables
-railway variables set SUPABASE_URL=your-url
-railway variables set SUPABASE_SERVICE_ROLE_KEY=your-key
-railway variables set LOVABLE_API_KEY=your-key
-railway variables set RAVI_KEY_SECRET=your-secret
-
-# Deploy
-railway up
-```
-
----
-
-## 🔍 عیب‌یابی عمومی
-
-### خطای "Cannot find module"
-
-```bash
-# پاک کردن و نصب مجدد dependencies
-rm -rf node_modules
-npm install
-npm run build
-```
-
-### خطای "Port already in use"
-
-```bash
-# پیدا کردن process روی پورت 3000
-lsof -i :3000
-
-# کشتن process
-kill -9 <PID>
-
-# یا استفاده از پورت دیگر
-PORT=3001 npm start
-```
-
-### خطای "ECONNREFUSED Supabase"
-
-- URL و API Key را بررسی کنید
-- اینترنت را چک کنید
-- Supabase project را در داشبورد بررسی کنید
-
-### خطای "RAVI_KEY_SECRET not set"
-
-```bash
-# ایجاد secret تصادفی 32 کاراکتری
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-
-# اضافه کردن به .env
-echo "RAVI_KEY_SECRET=<generated-secret>" >> .env
-```
-
-### لاگ‌های سرور
-
-```bash
-# Development
-npm run dev
-
-# Production logs
-NODE_ENV=production npm start 2>&1 | tee server.log
-```
-
----
-
-## 📊 Health Check Endpoint
-
-برنامه باید یک endpoint برای health check داشته باشد:
-
-```typescript
-// src/routes/__root.tsx یا مسیر مشابه
-export async function loader() {
-  return {
-    status: "ok",
-    timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version,
-  };
-}
-```
-
-تست:
-
-```bash
-curl http://localhost:3000/
-# باید JSON با status: "ok" برگرداند
-```
-
----
-
-## 🔐 امنیت
-
-### متغیرهای محیطی
-
-- ✅ **هرگز** `.env` را commit نکنید
-- ✅ از `.env.example` برای template استفاده کنید
-- ✅ `SUPABASE_SERVICE_ROLE_KEY` را فقط سمت سرور استفاده کنید
-- ✅ `RAVI_KEY_SECRET` را secret نگه دارید
-
-### CORS
-
-اگر به CORS نیاز دارید:
-
-```typescript
-// app.config.ts
-export default defineConfig({
-  server: {
-    cors: {
-      origin: ["https://yourdomain.com"],
-      credentials: true,
-    },
-  },
-});
-```
-
----
-
-## 📝 Checklist قبل از Deploy
-
-- [ ] `npm run build` موفق است
-- [ ] تمام متغیرهای محیطی تنظیم شده‌اند
-- [ ] `app.config.ts` با `hostname: "0.0.0.0"` موجود است
-- [ ] `package.json` دارای script `"start"` است
-- [ ] Supabase connection تست شده است
-- [ ] `.env` در `.gitignore` است
-- [ ] Health check endpoint کار می‌کند
-
----
-
-## 🆘 پشتیبانی
-
-اگر همچنان مشکل دارید:
-
-1. لاگ‌های کامل را بررسی کنید
-2. به [CODE_QUALITY_IMPROVEMENTS.md](CODE_QUALITY_IMPROVEMENTS.md) مراجعه کنید
-3. به [TEST_CHECKLIST.md](TEST_CHECKLIST.md) مراجعه کنید
-4. Issue در GitHub ایجاد کنید با:
-   - پیام خطای کامل
-   - محیط deployment (Lovable/Vercel/Railway/etc.)
-   - لاگ‌های build و runtime
-
----
-
-**تاریخ ایجاد**: 2026-09-06
-**نسخه**: 1.0.0
-**وضعیت**: ✅ آماده برای Production
+## 📊 چک‌لیست نهایی
+
+- [ ] `DATABASE_URL` تنظیم شده و مهاجرت‌ها اجرا شده‌اند
+- [ ] `SESSION_SECRET` و `RAVI_KEY_SECRET` مقدار تصادفی دارند و جایی امن نگهداری می‌شوند
+- [ ] `OPENAI_API_KEY` تنظیم شده
+- [ ] حساب مدیر ساخته شده و ورود آزمایش شده
+- [ ] صفحهٔ اصلی در پنجرهٔ ناشناس بدون ورود کار می‌کند
+- [ ] `NODE_ENV` روی سرور `production` است (یا اصلاً تنظیم نشده)
+- [ ] دامنه روی HTTPS است (میکروفن در مرورگر بدون HTTPS کار نمی‌کند)
+- [ ] سقف‌های `RL_*` متناسب با ترافیک و بودجهٔ شما بازبینی شده‌اند

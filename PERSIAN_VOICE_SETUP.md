@@ -27,7 +27,7 @@
 
 3. **تشخیص گفتار فارسی:** سیستم **دو موتور** را به صورت موازی اجرا می‌کند ([providers.server.ts:463-492](src/lib/ravi/providers.server.ts#L463-L492)):
    - **Deepgram** (اگر `DEEPGRAM_API_KEY` موجود باشد)
-   - **Whisper** (از OpenAI، Groq یا Lovable Gateway)
+   - **Whisper** (از OpenAI یا Groq)
 
 4. **انتخاب بهترین نتیجه:** متنی که بیشتر شبیه فارسی است انتخاب می‌شود ([providers.server.ts:443-457](src/lib/ravi/providers.server.ts#L443-L457))
 
@@ -46,7 +46,6 @@ form.append("temperature", "0"); // بالاترین دقت
 | **OpenAI Whisper-1** | `language: "fa"` | عالی ⭐⭐⭐⭐⭐ |
 | **Groq Whisper Large v3 Turbo** | `language: "fa"` | عالی ⭐⭐⭐⭐⭐ |
 | **Deepgram Nova-3** | `language: "fa"` | عالی ⭐⭐⭐⭐⭐ |
-| **Lovable Gateway** | `GATEWAY_STT_MODEL: "openai/gpt-4o-transcribe"` | خوب ⭐⭐⭐⭐ |
 
 ### ویژگی‌های پیشرفته:
 
