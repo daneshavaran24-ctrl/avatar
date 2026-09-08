@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "ai-avatar-video": {
+      "source": "prime-skills/runcomfy-agent-skills",
+      "sourceType": "github",
+      "skillPath": "ai-avatar-video/SKILL.md",
+      "computedHash": "29f3dc5e8365db761e66617f0d66e0e113a84c4739f08980e008ff851c29eb7a"
+    },
     "heygen-avatar": {
       "source": "heygen-com/skills",
       "sourceType": "github",
