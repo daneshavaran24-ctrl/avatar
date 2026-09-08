@@ -1,11 +1,23 @@
 {
   "version": 1,
   "skills": {
+    "agents-ts": {
+      "source": "codestackr/livekit-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/livekit-agents-ts/skills/agents-ts/SKILL.md",
+      "computedHash": "9fde8ff5cd1648571336f2fd7c2eaf8e0d6ac5cda89538458b03a2ddadc83072"
+    },
     "ai-avatar-video": {
       "source": "prime-skills/runcomfy-agent-skills",
       "sourceType": "github",
       "skillPath": "ai-avatar-video/SKILL.md",
       "computedHash": "29f3dc5e8365db761e66617f0d66e0e113a84c4739f08980e008ff851c29eb7a"
+    },
+    "ai-sdk": {
+      "source": "vercel/ai",
+      "sourceType": "github",
+      "skillPath": "skills/use-ai-sdk/SKILL.md",
+      "computedHash": "da25c27a274ef2b71017c255f95a26350d2519765a75cb54ee1a37872b121dab"
     },
     "heygen-avatar": {
       "source": "heygen-com/skills",
@@ -13,11 +25,35 @@
       "skillPath": "heygen-avatar/SKILL.md",
       "computedHash": "c58cb4db3b2fd3a6ca81b2c0dfc16abab2e17fc77c4c5a613a3eb83fc215ed22"
     },
+    "heygen-avatar-video": {
+      "source": "calesthio/generative-media-skills",
+      "sourceType": "github",
+      "skillPath": "skills/providers/avatar-video/heygen-avatar-video/SKILL.md",
+      "computedHash": "6b4dd53f989b391dc473e5990cf386d859d7acfed4fe6f18f2f3761a6dff9850"
+    },
     "lipsync": {
       "source": "prime-skills/runcomfy-agent-skills",
       "sourceType": "github",
       "skillPath": "lipsync/SKILL.md",
       "computedHash": "f8d47a2f1cbe9620acd012d796f0149d8858f77996883e23d0433a3e5d539fe6"
+    },
+    "react-hooks": {
+      "source": "codestackr/livekit-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/livekit-react-hooks/skills/react-hooks/SKILL.md",
+      "computedHash": "fb694e024934e08d2248bb59cab575cb4f271adfdd09182f2a2851e86bbf1346"
+    },
+    "shadcn": {
+      "source": "shadcn-ui/ui",
+      "sourceType": "github",
+      "skillPath": "skills/shadcn/SKILL.md",
+      "computedHash": "f615de216e085a84e31593ad0fa9062232adc40cd87b7c7ab2b8e49abf6500be"
+    },
+    "supabase-nextjs": {
+      "source": "alinaqi/maggy",
+      "sourceType": "github",
+      "skillPath": "skills/supabase-nextjs/SKILL.md",
+      "computedHash": "716b6d93766fd4be2534d66bdc3b67a59558b4b73a16ae33eabea6801163cd46"
     }
   }
 }
