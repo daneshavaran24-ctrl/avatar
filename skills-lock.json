@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "heygen-avatar": {
+      "source": "heygen-com/skills",
+      "sourceType": "github",
+      "skillPath": "heygen-avatar/SKILL.md",
+      "computedHash": "c58cb4db3b2fd3a6ca81b2c0dfc16abab2e17fc77c4c5a613a3eb83fc215ed22"
+    }
+  }
+}
