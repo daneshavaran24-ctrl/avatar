@@ -1,0 +1,163 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { ArrowRight, LogOut } from "lucide-react";
+
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AdminBehavior } from "@/components/ravi/AdminBehavior";
+import { AdminConversations } from "@/components/ravi/AdminConversations";
+import { AdminKnowledge } from "@/components/ravi/AdminKnowledge";
+import { AdminConnections } from "@/components/ravi/AdminConnections";
+import { getOverview } from "@/lib/ravi/admin.functions";
+import { SOURCE_LABELS, type SourceType } from "@/lib/ravi/types";
+
+export const Route = createFileRoute("/admin")({
+  head: () => ({
+    meta: [
+      { title: "پنل مدیریت | راوی‌استان" },
+      {
+        name: "description",
+        content:
+          "مدیریت پایگاه دانش، رفتار پاسخ‌گویی و بایگانی گفتگوهای دستیار هوشمند راوی‌استان.",
+      },
+      { property: "og:title", content: "پنل مدیریت | راوی‌استان" },
+      {
+        property: "og:description",
+        content: "بارگذاری اسناد، تنظیم لحن و سیاست‌ها و مرور گفتگوهای دستیار راوی‌استان.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: AdminPage,
+});
+
+function AdminPage() {
+  const navigate = useNavigate();
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) {
+        void navigate({ to: "/auth" });
+        return;
+      }
+      setChecked(true);
+    });
+  }, [navigate]);
+
+  if (!checked) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-sm text-muted-foreground">در حال بررسی دسترسی…</p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-background">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 lg:px-8">
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gradient-main">پنل مدیریت راوی‌استان</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              پایگاه دانش، رفتار پاسخ‌گویی و بایگانی گفتگوها
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link to="/">
+                <ArrowRight className="size-4" />
+                بازگشت به دستیار
+              </Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                await supabase.auth.signOut();
+                void navigate({ to: "/auth" });
+              }}
+            >
+              <LogOut className="size-4" />
+              خروج
+            </Button>
+          </div>
+        </header>
+
+        <Overview />
+
+        <Tabs defaultValue="knowledge" dir="rtl">
+          <TabsList>
+            <TabsTrigger value="knowledge">پایگاه دانش</TabsTrigger>
+            <TabsTrigger value="behavior">رفتار و سیاست‌ها</TabsTrigger>
+            <TabsTrigger value="conversations">گفتگوها</TabsTrigger>
+            <TabsTrigger value="connections">کلیدها و آواتار</TabsTrigger>
+          </TabsList>
+          <TabsContent value="knowledge" className="mt-4">
+            <AdminKnowledge />
+          </TabsContent>
+          <TabsContent value="behavior" className="mt-4">
+            <AdminBehavior />
+          </TabsContent>
+          <TabsContent value="conversations" className="mt-4">
+            <AdminConversations />
+          </TabsContent>
+          <TabsContent value="connections" className="mt-4">
+            <AdminConnections />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </main>
+  );
+}
+
+function Overview() {
+  const overviewFn = useServerFn(getOverview);
+  const overview = useQuery({ queryKey: ["admin", "overview"], queryFn: () => overviewFn() });
+
+  if (overview.isError) {
+    return (
+      <p className="rounded-2xl bg-destructive/15 px-4 py-3 text-sm text-destructive-foreground">
+        دسترسی مدیریتی برای این حساب کاربری فعال نیست. با مدیر سامانه تماس بگیرید.
+      </p>
+    );
+  }
+
+  const data = overview.data;
+  const cards = [
+    { label: "نشست‌های گفتگو", value: data?.sessionCount ?? "—" },
+    { label: "پاسخ‌های تولیدشده", value: data?.answerCount ?? "—" },
+    {
+      label: "میانهٔ زمان پاسخ",
+      value: data?.medianLatencyMs != null ? `${data.medianLatencyMs} ms` : "—",
+    },
+    { label: "قطعه‌های دانش", value: data?.chunkCount ?? "—" },
+    { label: "خطای سرویس‌دهنده", value: data ? `${data.providerErrorRate}٪` : "—" },
+  ];
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {cards.map((card) => (
+          <div key={card.label} className="rounded-2xl glass-panel p-4">
+            <p className="text-xs text-muted-foreground">{card.label}</p>
+            <p className="mt-1 text-xl font-semibold">{card.value}</p>
+          </div>
+        ))}
+      </div>
+      {data && Object.keys(data.bySource).length > 0 && (
+        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+          {Object.entries(data.bySource).map(([source, count]) => (
+            <span key={source} className="rounded-full bg-surface-2 px-3 py-1">
+              {SOURCE_LABELS[source as SourceType] ?? source}: {count}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
