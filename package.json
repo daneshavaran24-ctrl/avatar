@@ -13,7 +13,8 @@
     "format": "prettier --write .",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed-admin": "tsx scripts/seed-admin.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "node scripts/e2e-check.mjs"
   },
   "dependencies": {
     "@heygen/liveavatar-web-sdk": "^0.0.18",

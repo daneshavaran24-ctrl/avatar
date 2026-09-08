@@ -64,6 +64,17 @@ async function hit(bucketKey: string, limit: Limit): Promise<void> {
 }
 
 /**
+ * How much more an IP may do than a single visitor.
+ *
+ * The per-IP bucket exists so clearing cookies does not reset the budget, but
+ * it must not punish people who share an address. Carrier-grade NAT is the norm
+ * for much of this audience, so an office or a mobile network can legitimately
+ * be dozens of distinct visitors behind one IP. Applying the per-visitor number
+ * to the IP would lock all of them out because of one heavy user.
+ */
+const IP_ALLOWANCE_MULTIPLIER = Number(process.env["RL_IP_MULTIPLIER"] ?? 15);
+
+/**
  * Records one use of `name` against this visitor and IP, throwing once either
  * is over budget. Call before doing the expensive work, not after.
  */
@@ -72,7 +83,15 @@ export async function enforceLimit(
   subject: { visitorId?: string; ip: string },
 ): Promise<void> {
   const limit = limits()[name];
-  await hit(`${name}:ip:${subject.ip}`, limit);
+
+  // Login is keyed only by IP — there is no visitor identity to fall back on,
+  // and a shared address is an acceptable cost for brute-force protection.
+  const ipLimit =
+    name === "login"
+      ? limit
+      : { ...limit, max: limit.max * IP_ALLOWANCE_MULTIPLIER };
+
+  await hit(`${name}:ip:${subject.ip}`, ipLimit);
   if (subject.visitorId) await hit(`${name}:visitor:${subject.visitorId}`, limit);
 }
 
