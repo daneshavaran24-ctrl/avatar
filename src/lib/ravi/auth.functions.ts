@@ -155,11 +155,7 @@ export const createAdminUser = createServerFn({ method: "POST" })
 export const deleteAdminUser = createServerFn({ method: "POST" })
   .middleware([requireAdminSession])
   .inputValidator((data: unknown) => deleteAdminSchema.parse(data))
-  .handler(async ({ data, context }) => {
-    if (data.userId === context.userId) {
-      throw new Error("نمی‌توانید حساب خودتان را حذف کنید.");
-    }
-
+  .handler(async ({ data }) => {
     const { sql } = await import("@/lib/db/client.server");
     const [deleted] = await sql<{ id: string }[]>`
       DELETE FROM admin_users WHERE id = ${data.userId} RETURNING id

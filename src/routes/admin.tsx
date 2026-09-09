@@ -1,8 +1,7 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { ArrowRight, LogOut } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,7 +11,6 @@ import { AdminKnowledge } from "@/components/ravi/AdminKnowledge";
 import { AdminConnections } from "@/components/ravi/AdminConnections";
 import { AdminUsers } from "@/components/ravi/AdminUsers";
 import { getOverview } from "@/lib/ravi/admin.functions";
-import { adminLogout, adminWhoami } from "@/lib/ravi/auth.functions";
 import { SOURCE_LABELS, type SourceType } from "@/lib/ravi/types";
 
 export const Route = createFileRoute("/admin")({
@@ -37,33 +35,6 @@ export const Route = createFileRoute("/admin")({
 });
 
 function AdminPage() {
-  const navigate = useNavigate();
-  const whoami = useServerFn(adminWhoami);
-  const logout = useServerFn(adminLogout);
-  const [checked, setChecked] = useState(false);
-
-  useEffect(() => {
-    void whoami()
-      .then((session) => {
-        if (!session) {
-          void navigate({ to: "/auth" });
-          return;
-        }
-        setChecked(true);
-      })
-      .catch(() => {
-        void navigate({ to: "/auth" });
-      });
-  }, [navigate, whoami]);
-
-  if (!checked) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-background">
-        <p className="text-sm text-muted-foreground">در حال بررسی دسترسی…</p>
-      </main>
-    );
-  }
-
   return (
     <main className="ambient-backdrop min-h-screen">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 lg:px-8">
@@ -74,25 +45,12 @@ function AdminPage() {
               پایگاه دانش، رفتار پاسخ‌گویی و بایگانی گفتگوها
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button asChild variant="outline" size="sm">
-              <Link to="/">
-                <ArrowRight className="size-4" />
-                بازگشت به دستیار
-              </Link>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={async () => {
-                await logout();
-                void navigate({ to: "/auth" });
-              }}
-            >
-              <LogOut className="size-4" />
-              خروج
-            </Button>
-          </div>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/">
+              <ArrowRight className="size-4" />
+              بازگشت به دستیار
+            </Link>
+          </Button>
         </header>
 
         <Overview />
