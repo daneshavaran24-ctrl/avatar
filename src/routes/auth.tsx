@@ -49,13 +49,23 @@ function AuthPage() {
 
   useEffect(() => {
     void (async () => {
-      const session = await whoami();
-      if (session) {
-        void navigate({ to: "/admin" });
-        return;
+      try {
+        const session = await whoami();
+        if (session) {
+          void navigate({ to: "/admin" });
+          return;
+        }
+      } catch {
+        // Session check failed — continue to login/setup form.
       }
-      const result = await checkNoAdmin();
-      setMode(result.empty ? "setup" : "login");
+
+      try {
+        const result = await checkNoAdmin();
+        setMode(result.empty ? "setup" : "login");
+      } catch {
+        setMode("login");
+        setError("اتصال به سرور برقرار نشد. لطفاً تنظیمات دیتابیس را بررسی کنید.");
+      }
     })();
   }, [navigate, whoami, checkNoAdmin]);
 
