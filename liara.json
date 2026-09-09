@@ -1,6 +1,4 @@
 {
-  "platform": "docker",
-  "port": 3000,
-  "args": [],
-  "disks": []
+  "platform": "node",
+  "port": 3000
 }
