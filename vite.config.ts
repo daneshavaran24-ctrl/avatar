@@ -30,17 +30,20 @@ export default defineConfig({
   // @lovable.dev/vite-tanstack-config به صورت پیش‌فرض از cloudflare استفاده می‌کند
   // ما آن را به node-server تغییر می‌دهیم و 0.0.0.0 را تنظیم می‌کنیم
   nitro: {
-    preset: "node-server", // تغییر از cloudflare به node-server
+    preset: "node-server",
     devServer: {
-      host: "0.0.0.0", // مهم: برای دسترسی external
+      host: "0.0.0.0",
       port: 5173,
     },
     runtimeConfig: {
       nitro: {
-        // پورت از متغیر محیطی PORT (Lovable خودکار set می‌کند)
         port: process.env.PORT || 3000,
-        // مهم: باید 0.0.0.0 باشد، نه localhost
         host: "0.0.0.0",
+      },
+    },
+    routeRules: {
+      "/api/liveavatar/**": {
+        proxy: "https://api.liveavatar.com/**",
       },
     },
   },

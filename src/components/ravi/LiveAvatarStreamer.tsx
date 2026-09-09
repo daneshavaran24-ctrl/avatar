@@ -122,8 +122,9 @@ const LiveAvatarStreamer = forwardRef<AvatarStreamerHandle, Props>(function Live
       let entry = sessionRegistry.get(token);
       const isNew = !entry;
       if (!entry) {
+        const apiUrl = `${window.location.origin}/api/liveavatar`;
         entry = {
-          session: new LiveAvatarSession(token, { voiceChat: false }) as unknown as AnySession,
+          session: new LiveAvatarSession(token, { voiceChat: false, apiUrl }) as unknown as AnySession,
           refs: 0,
         };
         sessionRegistry.set(token, entry);
