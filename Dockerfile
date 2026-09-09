@@ -15,6 +15,9 @@ COPY . .
 ENV NODE_ENV=production
 RUN npm run build
 
+# Fail the build loudly if Nitro didn't produce the server entry.
+RUN test -f .output/server/index.mjs || (echo "BUILD FAILED: .output/server/index.mjs missing" && exit 1)
+
 # Compile migration/seed TS scripts to standalone ESM so the runtime image
 # needs only the two small pure-JS deps (postgres, bcryptjs) — no tsx/esbuild.
 RUN npx esbuild scripts/migrate.ts --bundle --platform=node --format=esm \
@@ -27,6 +30,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV NITRO_HOST=0.0.0.0
+ENV NITRO_PORT=3000
 
 COPY --from=build /app/.output ./.output
 COPY --from=build /app/package.json ./package.json
@@ -39,5 +43,12 @@ COPY --from=build /app/scripts/seed-admin.mjs ./scripts/seed-admin.mjs
 COPY --from=build /app/node_modules/postgres ./node_modules/postgres
 COPY --from=build /app/node_modules/bcryptjs ./node_modules/bcryptjs
 
+COPY entrypoint.sh ./entrypoint.sh
+RUN chmod +x entrypoint.sh
+
 EXPOSE 3000
-CMD ["sh", "-c", "echo \"[ravi] node=$(node -v) host=${NITRO_HOST:-${HOST:-auto}} port=${NITRO_PORT:-${PORT:-3000}} NODE_ENV=$NODE_ENV\" && exec node .output/server/index.mjs"]
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)throw r.status;process.exit(0)}).catch(()=>process.exit(1))"
+
+CMD ["./entrypoint.sh"]
