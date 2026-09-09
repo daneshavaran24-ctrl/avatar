@@ -3,18 +3,16 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 
-import { adminLogin, adminWhoami } from "@/lib/ravi/auth.functions";
+import {
+  adminLogin,
+  adminWhoami,
+  hasNoAdmin,
+  setupFirstAdmin,
+} from "@/lib/ravi/auth.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-/**
- * The administrators' entrance, and the only login in the system.
- *
- * Visitors never come here: the front page is public and anonymous. There is no
- * signup and no password reset — accounts are created by an operator running
- * `npm run db:seed-admin`, which is also how a forgotten password is reset.
- */
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
@@ -39,6 +37,10 @@ function AuthPage() {
   const navigate = useNavigate();
   const login = useServerFn(adminLogin);
   const whoami = useServerFn(adminWhoami);
+  const checkNoAdmin = useServerFn(hasNoAdmin);
+  const setupFn = useServerFn(setupFirstAdmin);
+
+  const [mode, setMode] = useState<"loading" | "login" | "setup">("loading");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -46,16 +48,21 @@ function AuthPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void whoami().then((session) => {
-      if (session) void navigate({ to: "/admin" });
-    });
-  }, [navigate, whoami]);
+    void (async () => {
+      const session = await whoami();
+      if (session) {
+        void navigate({ to: "/admin" });
+        return;
+      }
+      const result = await checkNoAdmin();
+      setMode(result.empty ? "setup" : "login");
+    })();
+  }, [navigate, whoami, checkNoAdmin]);
 
-  async function submit(event: React.FormEvent) {
+  async function handleLogin(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
     setBusy(true);
-
     try {
       await login({ data: { email, password } });
       void navigate({ to: "/admin" });
@@ -70,18 +77,61 @@ function AuthPage() {
     }
   }
 
+  async function handleSetup(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await setupFn({ data: { email, password } });
+      void navigate({ to: "/admin" });
+    } catch (setupError) {
+      setError(
+        setupError instanceof Error && setupError.message
+          ? setupError.message
+          : "ثبت‌نام ناموفق بود. دوباره تلاش کنید.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (mode === "loading") {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-sm text-muted-foreground">در حال بررسی…</p>
+      </main>
+    );
+  }
+
+  const isSetup = mode === "setup";
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md rounded-3xl glass-panel p-8">
-        <h1 className="text-2xl font-bold text-gradient-main">ورود به پنل مدیریت</h1>
+        <h1 className="text-2xl font-bold text-gradient-main">
+          {isSetup ? "راه‌اندازی اولیه" : "ورود به پنل مدیریت"}
+        </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          این صفحه ویژهٔ مدیران سازمان است. برای گفتگو با راوی‌استان نیازی به حساب کاربری نیست؛ کافی
-          است به <a className="underline hover:text-foreground" href="/">صفحهٔ اصلی</a> بروید.
+          {isSetup
+            ? "هنوز هیچ مدیری ثبت نشده. اولین حساب مدیریتی را بسازید."
+            : (
+                <>
+                  این صفحه ویژهٔ مدیران سازمان است. برای گفتگو با راوی‌استان نیازی به حساب کاربری
+                  نیست؛ کافی است به{" "}
+                  <a className="underline hover:text-foreground" href="/">
+                    صفحهٔ اصلی
+                  </a>{" "}
+                  بروید.
+                </>
+              )}
         </p>
 
-        <form className="mt-6 flex flex-col gap-4" onSubmit={submit}>
+        <form
+          className="mt-6 flex flex-col gap-4"
+          onSubmit={isSetup ? handleSetup : handleLogin}
+        >
           <div className="flex flex-col gap-2">
-            <Label htmlFor="email">نشانی ایمیل سازمانی</Label>
+            <Label htmlFor="email">نشانی ایمیل{isSetup ? "" : " سازمانی"}</Label>
             <Input
               id="email"
               type="email"
@@ -95,14 +145,17 @@ function AuthPage() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="password">گذرواژه</Label>
+            <Label htmlFor="password">
+              گذرواژه{isSetup ? " (حداقل ۱۲ کاراکتر)" : ""}
+            </Label>
             <div className="relative">
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
                 dir="ltr"
                 required
-                autoComplete="current-password"
+                autoComplete={isSetup ? "new-password" : "current-password"}
+                minLength={isSetup ? 12 : undefined}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 className="bg-surface-2 pl-10 text-left"
@@ -126,13 +179,14 @@ function AuthPage() {
 
           <Button type="submit" disabled={busy}>
             {busy && <Loader2 className="size-4 animate-spin" />}
-            ورود
+            {isSetup ? "ساخت حساب مدیر" : "ورود"}
           </Button>
         </form>
 
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          حساب مدیریتی تنها توسط مدیر سامانه و از طریق سرور ساخته می‌شود. اگر گذرواژه را فراموش
-          کرده‌اید، با مدیر سامانه تماس بگیرید.
+          {isSetup
+            ? "این فرم فقط یک بار نمایش داده می‌شود. پس از ساخت اولین مدیر، ثبت‌نام جدید فقط از پنل مدیریت ممکن است."
+            : "حساب مدیریتی تنها توسط مدیر سامانه ساخته می‌شود. اگر گذرواژه را فراموش کرده‌اید، با مدیر سامانه تماس بگیرید."}
         </p>
       </div>
     </main>

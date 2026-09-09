@@ -55,6 +55,58 @@ export const adminWhoami = createServerFn({ method: "GET" }).handler(async () =>
   return session ? { email: session.email } : null;
 });
 
+const setupSchema = z.object({
+  email: z.string().email().max(320),
+  password: z.string().min(12).max(200),
+});
+
+/** True when the system has no admin yet (first-time setup). */
+export const hasNoAdmin = createServerFn({ method: "GET" }).handler(async () => {
+  const { sql } = await import("@/lib/db/client.server");
+  const [row] = await sql<{ count: string }[]>`
+    SELECT count(*)::text FROM user_roles WHERE role = 'admin'
+  `;
+  return { empty: row.count === "0" };
+});
+
+/** Register the very first admin. Refuses if any admin already exists. */
+export const setupFirstAdmin = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => setupSchema.parse(data))
+  .handler(async ({ data }) => {
+    const [{ sql }, auth, bcrypt, rateLimit] = await Promise.all([
+      import("@/lib/db/client.server"),
+      import("./auth.server"),
+      import("bcryptjs"),
+      import("./ratelimit.server"),
+    ]);
+
+    await rateLimit.enforceLimit("login", { ip: auth.clientIp() });
+
+    const [existing] = await sql<{ count: string }[]>`
+      SELECT count(*)::text FROM user_roles WHERE role = 'admin'
+    `;
+    if (existing.count !== "0") {
+      throw new Error("مدیر قبلاً ثبت شده. از فرم ورود استفاده کنید.");
+    }
+
+    const email = data.email.trim().toLowerCase();
+    const passwordHash = await bcrypt.hash(data.password, 12);
+
+    const [user] = await sql<{ id: string }[]>`
+      INSERT INTO admin_users (email, password_hash)
+      VALUES (${email}, ${passwordHash})
+      RETURNING id
+    `;
+
+    await sql`
+      INSERT INTO user_roles (user_id, role)
+      VALUES (${user.id}, 'admin')
+    `;
+
+    await auth.createAdminSession(user.id);
+    return { ok: true as const };
+  });
+
 export const listAdminUsers = createServerFn({ method: "GET" })
   .middleware([requireAdminSession])
   .handler(async () => {
