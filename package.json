@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build && tsx scripts/migrate.ts",
+    "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
-    "start": "HOST=0.0.0.0 NITRO_HOST=0.0.0.0 NITRO_PORT=3000 NODE_ENV=production node .output/server/index.mjs",
+    "start": "HOST=0.0.0.0 NITRO_HOST=0.0.0.0 NITRO_PORT=3000 NODE_ENV=production node scripts/start.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "db:migrate": "tsx scripts/migrate.ts",
