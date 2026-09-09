@@ -45,6 +45,29 @@
 
 ### گفتگوی صوتی فارسی
 
+```mermaid
+flowchart LR
+    subgraph STT ["ورودی صوتی (موازی)"]
+        direction TB
+        MIC["ضبط صدا"] --> DG["Deepgram nova-3"]
+        MIC --> WH["Whisper (OpenAI)"]
+        DG -. "fallback" .-> DG2["Deepgram whisper-large"]
+        WH -. "fallback" .-> GR["Groq whisper-large-v3"]
+        DG --> SC["امتیازدهی فارسی"]
+        DG2 --> SC
+        WH --> SC
+        GR --> SC
+        SC --> BEST["بهترین نتیجه"]
+    end
+
+    subgraph TTS ["خروجی صوتی (cascade)"]
+        direction TB
+        TXT["متن پاسخ"] --> EL["ElevenLabs v2"]
+        EL -. "fallback" .-> OA["OpenAI TTS"]
+        OA -. "fallback" .-> BR["صدای مرورگر"]
+    end
+```
+
 **ورودی صوتی:** تشخیص موازی با Whisper (OpenAI/Groq) و Deepgram، امتیازدهی خودکار برای انتخاب بهترین نتیجه، و فیلتر توهمات صوتی.
 
 **خروجی صوتی:** ElevenLabs Multilingual v2 (بهترین کیفیت) ← OpenAI TTS با دستورالعمل‌های فارسی ← صدای مرورگر.
@@ -90,11 +113,109 @@
 
 فقط سرور به پایگاه داده وصل می‌شود؛ مرورگر هرگز اتصال مستقیم ندارد. به همین دلیل کنترل دسترسی در کد برنامه اعمال می‌شود، نه با RLS.
 
+### نمودار پایگاه داده
+
+```mermaid
+erDiagram
+    admin_users ||--o{ auth_sessions : "has sessions"
+    admin_users ||--o{ user_roles : "has roles"
+    admin_users ||--o{ settings_versions : "created_by"
+    knowledge_documents ||--o{ knowledge_chunks : "contains"
+    conversation_sessions ||--o{ conversation_messages : "contains"
+    conversation_messages ||--o{ retrieval_events : "tracked by"
+
+    admin_users {
+        uuid id PK
+        text email UK
+        text password_hash
+        timestamptz created_at
+    }
+    auth_sessions {
+        uuid id PK
+        uuid user_id FK
+        text token_hash UK
+        timestamptz expires_at
+        text ip
+    }
+    user_roles {
+        uuid id PK
+        uuid user_id FK
+        app_role role
+    }
+    knowledge_documents {
+        uuid id PK
+        text title
+        text status
+        int chunk_count
+    }
+    knowledge_chunks {
+        uuid id PK
+        uuid document_id FK
+        int chunk_index
+        text content
+        vector embedding
+    }
+    conversation_sessions {
+        uuid id PK
+        uuid visitor_id
+        text status
+    }
+    conversation_messages {
+        uuid id PK
+        uuid session_id FK
+        text role
+        text content
+        text source_type
+        int latency_ms
+    }
+    retrieval_events {
+        uuid id PK
+        uuid message_id FK
+        uuid document_id
+        float score
+    }
+    provider_keys {
+        uuid id PK
+        text name UK
+        text value_ciphertext
+    }
+    app_settings {
+        uuid id PK
+        text tone_preset
+        int humor_level
+        int formality_level
+    }
+    rate_limit_counters {
+        text bucket_key PK
+        timestamptz window_start PK
+        int count
+    }
+```
+
 ---
 
 ## ۲. الگوریتم پاسخ‌گویی
 
 هر پرسش از یک خط لولهٔ پنج‌مرحله‌ای عبور می‌کند:
+
+```mermaid
+flowchart TD
+    A["پرسش کاربر (صوتی یا متنی)"] --> B["نرمال‌سازی فارسی"]
+    B --> C{"دروازهٔ سیاست"}
+    C -- "مسدود" --> D["پاسخ انصراف"]
+    C -- "مجاز" --> E["بردارسازی پرسش (text-embedding-3-small)"]
+    E --> F["جست‌وجوی برداری (pgvector / in-app)"]
+    F --> G{"تصمیم منبع"}
+    G -- "شباهت >= 0.52" --> H["KNOWLEDGE_BASE"]
+    G -- "شباهت جزئی" --> I["HYBRID"]
+    G -- "بدون شباهت" --> J["GENERAL_AI"]
+    H --> K["ساخت شخصیت + قطعه‌های بازیابی‌شده"]
+    I --> K
+    J --> K
+    K --> L["تولید پاسخ (OpenAI / OpenRouter)"]
+    L --> M["ثبت رخداد + ذخیره پیام"]
+    M --> N["پاسخ نهایی به کاربر"]
+```
 
 1. **نرمال‌سازی فارسی** — یکسان‌سازی «ی/ک»، حذف اعراب و کشیدگی، تبدیل ارقام فارسی/عربی به لاتین.
 2. **دروازهٔ سیاست (Policy Gate)** — پیش‌فیلتر واژگانی سریع، و در صورت شک، طبقه‌بندی با مدل. اگر مسدودسازی فعال باشد، پاسخ محترمانهٔ انصراف برگردانده می‌شود و هیچ فراخوانی پرهزینه‌ای انجام نمی‌شود.
@@ -124,6 +245,28 @@
 
 یک کلید برای هر دو سرویس HeyGen و LiveAvatar کافی است؛ نوع سرویس از روی خود کلید تشخیص داده می‌شود.
 
+```mermaid
+flowchart LR
+    subgraph Chat ["تولید پاسخ"]
+        C1["OpenAI (gpt-4o-mini)"] -. "fallback" .-> C2["OpenRouter (gemini-2.5-flash)"]
+    end
+
+    subgraph STT ["گفتار به متن"]
+        direction LR
+        S1["Deepgram"] & S2["Whisper-OpenAI"] --> S3{"امتیاز فارسی"}
+        S3 --> S4["بهترین"]
+    end
+
+    subgraph TTS ["متن به گفتار"]
+        T1["ElevenLabs"] -. "fallback" .-> T2["OpenAI TTS"] -. "fallback" .-> T3["مرورگر"]
+    end
+
+    subgraph Avatar ["آواتار زنده"]
+        A1{"تشخیص نوع کلید"} -- "LiveAvatar" --> A2["LiveAvatar SDK"]
+        A1 -- "HeyGen" --> A3["HeyGen Streaming SDK"]
+    end
+```
+
 **نحوهٔ ثبت کلید:** یا متغیر محیطی روی سرور، یا پنل مدیریت → تب «کلیدها و آواتار». کلیدهای پنل با AES-256-GCM رمزنگاری و در جدول `provider_keys` ذخیره می‌شوند؛ مقدار خام هرگز به مرورگر برنمی‌گردد. برای HeyGen/OpenRouter/Groq مقدار پنل بر متغیر محیطی اولویت دارد؛ برای OpenAI و ElevenLabs متغیر محیطی اولویت دارد.
 
 ---
@@ -151,6 +294,24 @@
 ---
 
 ## ۶. حساب مدیریتی
+
+```mermaid
+flowchart TD
+    V["بازدیدکننده → صفحهٔ اصلی /"] --> VC{"کوکی ravi_visitor؟"}
+    VC -- "ندارد" --> VN["ساخت کوکی ناشناس (1 سال)"]
+    VC -- "دارد" --> VE["شناسایی و مالکیت گفتگو"]
+    VN --> VE
+
+    A["مدیر → صفحهٔ /auth"] --> AC{"ادمینی در DB هست؟"}
+    AC -- "نه (اولین بار)" --> SF["فرم راه‌اندازی اولیه"]
+    SF --> CR["ساخت حساب + نقش admin + سشن"]
+    AC -- "بله" --> LF["فرم ورود"]
+    LF --> LV{"ایمیل + گذرواژه"}
+    LV -- "درست" --> SS["ساخت سشن (کوکی ravi_admin + ردیف DB)"]
+    LV -- "نادرست" --> ER["خطای عمومی"]
+    SS --> AD["پنل مدیریت /admin"]
+    CR --> AD
+```
 
 - حساب فقط با `npm run db:seed-admin` ساخته می‌شود.
 - اجرای دوبارهٔ همان دستور با ایمیل یکسان، گذرواژه را عوض می‌کند و همهٔ نشست‌های قبلی را باطل می‌کند — این تنها راه بازیابی گذرواژه است.
