@@ -65,11 +65,11 @@ function AdminPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background">
+    <main className="ambient-backdrop min-h-screen">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 lg:px-8">
-        <header className="flex flex-wrap items-center justify-between gap-3">
+        <header className="animate-fade-in flex flex-wrap items-center justify-between gap-3 rounded-2xl glass-panel p-4">
           <div>
-            <h1 className="text-2xl font-bold text-gradient-main">پنل مدیریت راوی‌استان</h1>
+            <h1 className="text-2xl font-bold text-gradient-accent">پنل مدیریت راوی‌استان</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               پایگاه دانش، رفتار پاسخ‌گویی و بایگانی گفتگوها
             </p>
@@ -98,7 +98,7 @@ function AdminPage() {
         <Overview />
 
         <Tabs defaultValue="knowledge" dir="rtl">
-          <TabsList>
+          <TabsList className="glass-panel">
             <TabsTrigger value="knowledge">پایگاه دانش</TabsTrigger>
             <TabsTrigger value="behavior">رفتار و سیاست‌ها</TabsTrigger>
             <TabsTrigger value="conversations">گفتگوها</TabsTrigger>
@@ -153,10 +153,14 @@ function Overview() {
   return (
     <div className="flex flex-col gap-3">
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {cards.map((card) => (
-          <div key={card.label} className="rounded-2xl glass-panel p-4">
+        {cards.map((card, index) => (
+          <div
+            key={card.label}
+            className="animate-fade-in rounded-2xl glass-panel p-4 transition-shadow hover:shadow-[0_0_24px_-6px_oklch(0.55_0.25_285_/_18%)]"
+            style={{ animationDelay: `${index * 60}ms` }}
+          >
             <p className="text-xs text-muted-foreground">{card.label}</p>
-            <p className="mt-1 text-xl font-semibold">{card.value}</p>
+            <p className="mt-1 text-xl font-semibold text-gradient-accent">{card.value}</p>
           </div>
         ))}
       </div>

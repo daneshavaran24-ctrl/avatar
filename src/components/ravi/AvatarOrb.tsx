@@ -2,11 +2,11 @@ import { cn } from "@/lib/utils";
 import type { AvatarState } from "@/lib/ravi/types";
 
 const RING_COLOR: Record<AvatarState, string> = {
-  IDLE: "var(--primary)",
+  IDLE: "var(--violet)",
   CONNECTING: "var(--cyan)",
   LISTENING: "var(--cyan)",
-  THINKING: "var(--ai)",
-  SPEAKING: "var(--primary)",
+  THINKING: "var(--primary)",
+  SPEAKING: "var(--violet)",
   ERROR: "var(--destructive)",
 };
 
@@ -74,10 +74,10 @@ export function SpeakingBars({ active }: { active: boolean }) {
       {[0, 1, 2, 3, 4].map((index) => (
         <span
           key={index}
-          className="w-1 rounded-full bg-cyan"
+          className="w-1 rounded-full"
           style={{
             height: "100%",
-            backgroundColor: "var(--cyan)",
+            backgroundColor: "var(--violet)",
             transformOrigin: "bottom",
             animation: active
               ? `ravi-bar 0.9s ease-in-out ${index * 0.12}s infinite`

@@ -54,6 +54,12 @@
       "sourceType": "github",
       "skillPath": "skills/supabase-nextjs/SKILL.md",
       "computedHash": "716b6d93766fd4be2534d66bdc3b67a59558b4b73a16ae33eabea6801163cd46"
+    },
+    "ui-ux-pro-max": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ui-ux-pro-max/SKILL.md",
+      "computedHash": "4080ff883b26b670a5a224fb332e89ecc15319535f4d14279947ad7812fec558"
     }
   }
 }

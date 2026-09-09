@@ -432,13 +432,13 @@ function RaviStage() {
       )}
 
       <header className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-4 px-4 py-4 lg:px-8">
-        <div className="rounded-2xl glass-panel px-4 py-2">
-          <h1 className="text-xl font-bold text-gradient-main lg:text-2xl">راوی‌استان</h1>
-          <p className="text-xs text-muted-foreground">دستیار هوشمند گفتگومحور سازمانی</p>
+        <div className="rounded-2xl glass-panel-glow px-5 py-2.5">
+          <h1 className="text-xl font-bold text-gradient-accent lg:text-2xl">راوی‌استان</h1>
+          <p className="text-[11px] text-muted-foreground">دستیار هوشمند گفتگومحور سازمانی</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="hidden items-center gap-2 rounded-full glass-panel px-3 py-1.5 text-xs text-muted-foreground sm:flex">
-            <ShieldCheck className="size-3.5" />
+            <ShieldCheck className="size-3.5 text-primary" />
             پاسخ‌ها مبتنی بر اسناد سازمان
           </span>
           <Button
@@ -510,14 +510,14 @@ function RaviStage() {
       )}
 
       {transcriptOpen && (
-        <aside className="absolute bottom-28 left-4 top-24 z-20 flex w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-3xl glass-panel">
-          <div className="flex items-center justify-between border-b border-border px-4 py-3">
-            <h2 className="text-sm font-semibold text-foreground">متن گفتگو</h2>
+        <aside className="absolute bottom-28 left-4 top-24 z-20 flex w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-3xl glass-panel-glow animate-fade-in">
+          <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
+            <h2 className="text-sm font-semibold text-gradient-accent">متن گفتگو</h2>
             <button
               type="button"
               onClick={() => setTranscriptOpen(false)}
               aria-label="بستن متن گفتگو"
-              className="text-muted-foreground hover:text-foreground"
+              className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
             >
               <X className="size-4" />
             </button>
@@ -550,7 +550,7 @@ function RaviStage() {
         )}
 
         <form
-          className="flex w-full max-w-2xl items-end gap-2 rounded-3xl glass-panel p-2"
+          className="flex w-full max-w-2xl items-end gap-2 rounded-3xl glass-panel-glow p-2"
           onSubmit={(event) => {
             event.preventDefault();
             void submitQuestion(draft, "TEXT");
@@ -562,6 +562,7 @@ function RaviStage() {
             variant={voice.recording ? "destructive" : "secondary"}
             onClick={() => void toggleMic()}
             aria-label={voice.recording ? "پایان ضبط صدا" : "شروع ضبط صدا"}
+            className={voice.recording ? "" : "hover:bg-primary/15 hover:text-primary"}
           >
             {voice.recording ? <MicOff className="size-4" /> : <Mic className="size-4" />}
           </Button>
@@ -578,7 +579,7 @@ function RaviStage() {
             rows={1}
             className="max-h-32 min-h-10 resize-none border-0 bg-surface-2"
           />
-          <Button type="submit" size="icon" disabled={pending || !draft.trim()}>
+          <Button type="submit" size="icon" disabled={pending || !draft.trim()} className="gradient-main text-primary-foreground shadow-lg shadow-primary/20">
             {pending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
           </Button>
         </form>
@@ -598,7 +599,7 @@ function OrbStage({ state }: { state: AvatarState }) {
 function OrbFallback({ state }: { state: AvatarState }) {
   return (
     <div className="flex h-full w-full items-center justify-center">
-      <span className="text-6xl font-bold text-gradient-main">ر</span>
+      <span className="text-6xl font-bold text-gradient-accent">ر</span>
       <span className="sr-only">{AVATAR_STATE_LABELS[state]}</span>
     </div>
   );

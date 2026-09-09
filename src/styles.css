@@ -5,23 +5,9 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * راوی‌استان design system.
- * Dark navy base, blue→cyan primary gradient, teal AI gradient.
- * All values in oklch. Never hardcode colors in components.
- */
-
-/*
- * Design system definition.
- *
- * The @theme inline block maps CSS custom properties to Tailwind utility
- * classes (e.g. --color-primary -> bg-primary, text-primary).
- *
- * The :root and .dark blocks define the actual color values using oklch.
- * All colors MUST use oklch format.
- *
- * To add a new semantic color:
- * 1. Add the variable to :root (light value) and .dark (dark value)
- * 2. Register it in @theme inline as --color-<name>: var(--<name>)
+ * راوی‌استان design system — Luxury dark edition.
+ * Deep dark base with purple/violet luminance, cyan accent.
+ * All values in oklch.
  */
 
 @theme inline {
@@ -71,6 +57,7 @@
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-cyan: var(--cyan);
+  --color-violet: var(--violet);
   --font-sans: var(--font-fa);
 }
 
@@ -78,68 +65,72 @@
   --radius: 1.125rem;
   --font-fa: "Vazirmatn", ui-sans-serif, system-ui, sans-serif;
 
-  /* Minimal dark: #0A0C10 base, #151A21 surface, #2DD4BF accent, #E6E8EB text */
-  --background: oklch(0.157 0.008 264);
-  --foreground: oklch(0.925 0.003 264);
+  /* Deep dark with purple tint */
+  --background: oklch(0.13 0.018 285);
+  --foreground: oklch(0.94 0.008 280);
 
-  --surface: oklch(0.213 0.009 258);
-  --surface-2: oklch(0.248 0.01 258);
+  --surface: oklch(0.185 0.02 280);
+  --surface-2: oklch(0.22 0.022 278);
 
-  --card: oklch(0.213 0.009 258);
-  --card-foreground: oklch(0.925 0.003 264);
-  --popover: oklch(0.196 0.009 258);
-  --popover-foreground: oklch(0.925 0.003 264);
+  --card: oklch(0.185 0.02 280);
+  --card-foreground: oklch(0.94 0.008 280);
+  --popover: oklch(0.17 0.019 282);
+  --popover-foreground: oklch(0.94 0.008 280);
 
-  /* Teal accent carries every interactive surface. */
-  --primary: oklch(0.782 0.13 179.5);
-  --primary-foreground: oklch(0.17 0.01 258);
-  --cyan: oklch(0.85 0.11 190);
+  /* Purple primary — vibrant, luxurious */
+  --primary: oklch(0.55 0.25 285);
+  --primary-foreground: oklch(0.98 0.005 280);
+  --violet: oklch(0.65 0.19 290);
+  --cyan: oklch(0.75 0.12 195);
 
-  --secondary: oklch(0.263 0.011 258);
-  --secondary-foreground: oklch(0.93 0.004 264);
+  --secondary: oklch(0.25 0.022 280);
+  --secondary-foreground: oklch(0.94 0.008 280);
 
-  --muted: oklch(0.253 0.01 258);
-  --muted-foreground: oklch(0.68 0.011 258);
+  --muted: oklch(0.23 0.018 280);
+  --muted-foreground: oklch(0.6 0.02 280);
 
-  --ai: oklch(0.782 0.13 179.5);
-  --ai-foreground: oklch(0.17 0.01 258);
-  --ai-soft: oklch(0.87 0.09 180);
+  /* AI presence uses a purple → cyan spectrum */
+  --ai: oklch(0.55 0.25 285);
+  --ai-foreground: oklch(0.98 0.005 280);
+  --ai-soft: oklch(0.65 0.19 290);
 
-  --accent: oklch(0.283 0.012 258);
-  --accent-foreground: oklch(0.94 0.005 264);
+  --accent: oklch(0.25 0.025 280);
+  --accent-foreground: oklch(0.94 0.008 280);
 
-  --destructive: oklch(0.63 0.19 24.5);
-  --destructive-foreground: oklch(0.97 0.005 264);
+  --destructive: oklch(0.6 0.2 25);
+  --destructive-foreground: oklch(0.97 0.005 280);
 
-  --border: oklch(0.98 0.004 264 / 10%);
-  --input: oklch(0.98 0.004 264 / 14%);
-  --ring: oklch(0.782 0.13 179.5);
+  --border: oklch(0.94 0.02 285 / 8%);
+  --input: oklch(0.94 0.02 285 / 12%);
+  --ring: oklch(0.55 0.25 285);
 
-  --chart-1: oklch(0.782 0.13 179.5);
-  --chart-2: oklch(0.85 0.11 190);
-  --chart-3: oklch(0.7 0.09 200);
-  --chart-4: oklch(0.62 0.08 250);
-  --chart-5: oklch(0.68 0.011 258);
+  --chart-1: oklch(0.55 0.25 285);
+  --chart-2: oklch(0.65 0.19 290);
+  --chart-3: oklch(0.75 0.12 195);
+  --chart-4: oklch(0.5 0.15 250);
+  --chart-5: oklch(0.6 0.02 280);
 
-  --sidebar: oklch(0.196 0.009 258);
-  --sidebar-foreground: oklch(0.925 0.003 264);
-  --sidebar-primary: oklch(0.782 0.13 179.5);
-  --sidebar-primary-foreground: oklch(0.17 0.01 258);
-  --sidebar-accent: oklch(0.263 0.011 258);
-  --sidebar-accent-foreground: oklch(0.94 0.005 264);
-  --sidebar-border: oklch(0.98 0.004 264 / 8%);
-  --sidebar-ring: oklch(0.782 0.13 179.5);
+  --sidebar: oklch(0.16 0.019 282);
+  --sidebar-foreground: oklch(0.94 0.008 280);
+  --sidebar-primary: oklch(0.55 0.25 285);
+  --sidebar-primary-foreground: oklch(0.98 0.005 280);
+  --sidebar-accent: oklch(0.25 0.022 280);
+  --sidebar-accent-foreground: oklch(0.94 0.008 280);
+  --sidebar-border: oklch(0.94 0.02 285 / 6%);
+  --sidebar-ring: oklch(0.55 0.25 285);
 
-  --gradient-main: linear-gradient(135deg, oklch(0.85 0.11 190), oklch(0.782 0.13 179.5));
-  --gradient-ai: linear-gradient(135deg, oklch(0.7 0.11 182), oklch(0.87 0.09 180));
+  --gradient-main: linear-gradient(135deg, oklch(0.55 0.25 285), oklch(0.65 0.19 290));
+  --gradient-accent: linear-gradient(135deg, oklch(0.55 0.25 285), oklch(0.75 0.12 195));
+  --gradient-ai: linear-gradient(135deg, oklch(0.5 0.22 288), oklch(0.72 0.14 200));
+  --gradient-glow: linear-gradient(135deg, oklch(0.55 0.25 285 / 20%), oklch(0.75 0.12 195 / 10%));
+
   --shadow-glow:
-    0 0 0 1px oklch(0.782 0.13 179.5 / 14%),
-    0 30px 80px -40px oklch(0.782 0.13 179.5 / 45%);
-  --shadow-soft: 0 24px 60px -32px oklch(0 0 0 / 85%);
+    0 0 0 1px oklch(0.55 0.25 285 / 12%),
+    0 0 40px -12px oklch(0.55 0.25 285 / 30%);
+  --shadow-soft: 0 24px 64px -20px oklch(0 0 0 / 70%);
+  --shadow-card: 0 8px 32px -8px oklch(0.55 0.25 285 / 8%);
 }
 
-
-/* The product is dark-first; .dark maps to the same tokens. */
 .dark {
   color-scheme: dark;
 }
@@ -165,6 +156,10 @@
   background-image: var(--gradient-main);
 }
 
+@utility gradient-accent {
+  background-image: var(--gradient-accent);
+}
+
 @utility gradient-ai {
   background-image: var(--gradient-ai);
 }
@@ -175,51 +170,86 @@
   color: transparent;
 }
 
-@utility glass-panel {
-  background-color: color-mix(in oklab, var(--surface) 72%, transparent);
-  backdrop-filter: blur(18px);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-soft);
+@utility text-gradient-accent {
+  background-image: var(--gradient-accent);
+  background-clip: text;
+  color: transparent;
 }
 
-/* Modern ambient backdrop: two soft teal glows over a faint technical grid. */
+@utility glass-panel {
+  background-color: color-mix(in oklab, var(--surface) 60%, transparent);
+  backdrop-filter: blur(24px) saturate(1.3);
+  border: 1px solid oklch(0.94 0.02 285 / 8%);
+  box-shadow:
+    var(--shadow-soft),
+    inset 0 1px 0 0 oklch(1 0 0 / 4%);
+}
+
+@utility glass-panel-glow {
+  background-color: color-mix(in oklab, var(--surface) 55%, transparent);
+  backdrop-filter: blur(28px) saturate(1.4);
+  border: 1px solid oklch(0.55 0.25 285 / 14%);
+  box-shadow:
+    var(--shadow-glow),
+    inset 0 1px 0 0 oklch(1 0 0 / 5%);
+}
+
 @utility ambient-backdrop {
   position: relative;
   background-color: var(--background);
   background-image:
-    radial-gradient(60rem 40rem at 78% -10%, color-mix(in oklab, var(--primary) 16%, transparent), transparent 70%),
-    radial-gradient(48rem 34rem at 8% 108%, color-mix(in oklab, var(--cyan) 12%, transparent), transparent 70%),
-    linear-gradient(color-mix(in oklab, var(--foreground) 4%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in oklab, var(--foreground) 4%, transparent) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 3.5rem 3.5rem, 3.5rem 3.5rem;
+    radial-gradient(56rem 40rem at 75% -8%, color-mix(in oklab, var(--primary) 14%, transparent), transparent 68%),
+    radial-gradient(44rem 32rem at 10% 105%, color-mix(in oklab, var(--cyan) 10%, transparent), transparent 68%),
+    radial-gradient(32rem 24rem at 50% 50%, color-mix(in oklab, var(--violet) 5%, transparent), transparent 60%),
+    linear-gradient(color-mix(in oklab, var(--foreground) 3%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--foreground) 3%, transparent) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 3rem 3rem, 3rem 3rem;
 }
 
+@utility shimmer-border {
+  position: relative;
+}
+
+/* Micro-interaction: subtle scale on interactive glass cards */
+@utility glass-interactive {
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
 
 @keyframes ravi-pulse-ring {
-  0% { transform: scale(1); opacity: 0.55; }
-  100% { transform: scale(1.9); opacity: 0; }
+  0% { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(1.8); opacity: 0; }
 }
 
 @keyframes ravi-breathe {
-  0%, 100% { opacity: 0.35; transform: scale(1); }
-  50% { opacity: 0.7; transform: scale(1.04); }
+  0%, 100% { transform: scale(1) translateY(0); opacity: 0.3; }
+  50% { transform: scale(1.015) translateY(-0.3%); opacity: 0.6; }
 }
 
 @keyframes ravi-bar {
-  0%, 100% { transform: scaleY(0.35); }
+  0%, 100% { transform: scaleY(0.3); }
   50% { transform: scaleY(1); }
 }
 
-/* Keeps the still portrait alive (soft breathing + eye-blink dim) when the
-   live stream is unavailable, so the stage never looks frozen. */
-@keyframes ravi-breathe {
-  0%, 100% { transform: scale(1) translateY(0); }
-  50% { transform: scale(1.012) translateY(-0.35%); }
-}
 @keyframes ravi-blink {
   0%, 92%, 100% { filter: brightness(1); }
-  95% { filter: brightness(0.9); }
+  95% { filter: brightness(0.92); }
 }
+
+@keyframes ravi-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ravi-glow-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes ravi-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
 .avatar-idle-life {
   animation: ravi-breathe 5.5s ease-in-out infinite, ravi-blink 6.5s ease-in-out infinite;
   will-change: transform, filter;
@@ -229,4 +259,22 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .avatar-idle-life { animation: none; }
+}
+
+.animate-fade-in {
+  animation: ravi-fade-in 400ms ease-out both;
+}
+
+.animate-glow-pulse {
+  animation: ravi-glow-pulse 3s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: ravi-float 4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-glow-pulse,
+  .animate-float { animation: none; }
 }

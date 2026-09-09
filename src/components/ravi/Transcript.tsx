@@ -5,10 +5,10 @@ import { SOURCE_LABELS, type TranscriptTurn } from "@/lib/ravi/types";
 import { cn } from "@/lib/utils";
 
 const SOURCE_STYLE: Record<string, string> = {
-  KNOWLEDGE_BASE: "border-transparent bg-primary/20 text-primary-foreground",
-  HYBRID: "border-transparent bg-ai/20 text-ai-foreground",
+  KNOWLEDGE_BASE: "border-transparent bg-primary/15 text-violet",
+  HYBRID: "border-transparent bg-violet/15 text-violet",
   GENERAL_AI: "border-border bg-surface-2 text-muted-foreground",
-  POLICY_BLOCK: "border-transparent bg-destructive/20 text-destructive-foreground",
+  POLICY_BLOCK: "border-transparent bg-destructive/15 text-destructive-foreground",
 };
 
 export function Transcript({ turns, pending }: { turns: TranscriptTurn[]; pending: boolean }) {

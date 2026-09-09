@@ -107,8 +107,8 @@ function AuthPage() {
 
   if (mode === "loading") {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background">
-        <p className="text-sm text-muted-foreground">در حال بررسی…</p>
+      <main className="ambient-backdrop flex min-h-screen items-center justify-center">
+        <Loader2 className="size-6 animate-spin text-primary" />
       </main>
     );
   }
@@ -116,28 +116,29 @@ function AuthPage() {
   const isSetup = mode === "setup";
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md rounded-3xl glass-panel p-8">
-        <h1 className="text-2xl font-bold text-gradient-main">
-          {isSetup ? "راه‌اندازی اولیه" : "ورود به پنل مدیریت"}
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {isSetup
-            ? "هنوز هیچ مدیری ثبت نشده. اولین حساب مدیریتی را بسازید."
-            : (
-                <>
-                  این صفحه ویژهٔ مدیران سازمان است. برای گفتگو با راوی‌استان نیازی به حساب کاربری
-                  نیست؛ کافی است به{" "}
-                  <a className="underline hover:text-foreground" href="/">
-                    صفحهٔ اصلی
-                  </a>{" "}
-                  بروید.
-                </>
-              )}
-        </p>
+    <main className="ambient-backdrop flex min-h-screen items-center justify-center px-4">
+      <div className="animate-fade-in w-full max-w-md rounded-3xl glass-panel-glow p-8">
+        <div className="mb-6 text-center">
+          <h1 className="text-3xl font-bold text-gradient-accent">
+            {isSetup ? "راه‌اندازی اولیه" : "ورود به پنل مدیریت"}
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+            {isSetup
+              ? "هنوز هیچ مدیری ثبت نشده. اولین حساب مدیریتی را بسازید."
+              : (
+                  <>
+                    این صفحه ویژهٔ مدیران سازمان است. برای گفتگو با راوی‌استان{" "}
+                    <a className="text-primary underline decoration-primary/40 underline-offset-2 transition-colors hover:text-violet" href="/">
+                      صفحهٔ اصلی
+                    </a>{" "}
+                    را ببینید.
+                  </>
+                )}
+          </p>
+        </div>
 
         <form
-          className="mt-6 flex flex-col gap-4"
+          className="flex flex-col gap-5"
           onSubmit={isSetup ? handleSetup : handleLogin}
         >
           <div className="flex flex-col gap-2">
@@ -150,7 +151,7 @@ function AuthPage() {
               autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="bg-surface-2 text-left"
+              className="bg-surface-2 text-left transition-shadow focus:shadow-[0_0_0_2px_oklch(0.55_0.25_285_/_20%)]"
             />
           </div>
 
@@ -168,13 +169,13 @@ function AuthPage() {
                 minLength={isSetup ? 12 : undefined}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="bg-surface-2 pl-10 text-left"
+                className="bg-surface-2 pl-10 text-left transition-shadow focus:shadow-[0_0_0_2px_oklch(0.55_0.25_285_/_20%)]"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((value) => !value)}
                 aria-label={showPassword ? "پنهان‌کردن گذرواژه" : "نمایش گذرواژه"}
-                className="absolute inset-y-0 left-2 flex items-center text-muted-foreground hover:text-foreground"
+                className="absolute inset-y-0 left-2 flex cursor-pointer items-center text-muted-foreground transition-colors hover:text-foreground"
               >
                 {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
@@ -187,13 +188,13 @@ function AuthPage() {
             </p>
           )}
 
-          <Button type="submit" disabled={busy}>
+          <Button type="submit" disabled={busy} className="mt-1 h-11 gradient-main text-primary-foreground font-semibold shadow-lg shadow-primary/20 transition-all hover:shadow-xl hover:shadow-primary/30">
             {busy && <Loader2 className="size-4 animate-spin" />}
             {isSetup ? "ساخت حساب مدیر" : "ورود"}
           </Button>
         </form>
 
-        <p className="mt-4 text-center text-xs text-muted-foreground">
+        <p className="mt-5 text-center text-xs leading-5 text-muted-foreground">
           {isSetup
             ? "این فرم فقط یک بار نمایش داده می‌شود. پس از ساخت اولین مدیر، ثبت‌نام جدید فقط از پنل مدیریت ممکن است."
             : "حساب مدیریتی تنها توسط مدیر سامانه ساخته می‌شود. اگر گذرواژه را فراموش کرده‌اید، با مدیر سامانه تماس بگیرید."}
