@@ -27,7 +27,6 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV NITRO_HOST=0.0.0.0
-ENV NITRO_PORT=3000
 
 COPY --from=build /app/.output ./.output
 COPY --from=build /app/package.json ./package.json
@@ -41,4 +40,4 @@ COPY --from=build /app/node_modules/postgres ./node_modules/postgres
 COPY --from=build /app/node_modules/bcryptjs ./node_modules/bcryptjs
 
 EXPOSE 3000
-CMD ["node", ".output/server/index.mjs"]
+CMD ["sh", "-c", "echo \"[ravi] node=$(node -v) host=${NITRO_HOST:-${HOST:-auto}} port=${NITRO_PORT:-${PORT:-3000}} NODE_ENV=$NODE_ENV\" && exec node .output/server/index.mjs"]
