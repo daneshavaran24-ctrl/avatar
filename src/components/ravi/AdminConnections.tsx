@@ -22,6 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { AdminElevenLabs } from "./AdminElevenLabs";
 import {
   checkConnection,
+  diagnoseDatabaseHealth,
   getConnections,
   listAvatarLooks,
   listSettingsHistory,
@@ -132,6 +133,12 @@ export function AdminConnections() {
   const connectionsFn = useServerFn(getConnections);
   const checkFn = useServerFn(checkConnection);
   const toggleFn = useServerFn(setServiceEnabled);
+  const diagnoseFn = useServerFn(diagnoseDatabaseHealth);
+
+  const diagnosis = useQuery({
+    queryKey: ["admin", "db-health"],
+    queryFn: () => diagnoseFn(),
+  });
 
   const overview = useQuery({
     queryKey: ["admin", "connections"],
@@ -173,8 +180,33 @@ export function AdminConnections() {
   const data = overview.data;
   const accessDenied = overview.isError;
 
+  const db = diagnosis.data;
+  const dbProblem = db && (!db.dbConnected || !db.providerKeysTableExists || !db.hasKeySecret);
+
   return (
     <div className="flex flex-col gap-6">
+      {dbProblem && (
+        <div className="rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm">
+          <p className="font-semibold text-yellow-200">تشخیص مشکل پایگاه داده</p>
+          <ul className="mt-2 list-inside list-disc space-y-1 text-yellow-100/80">
+            {!db.dbConnected && (
+              <li>
+                اتصال به دیتابیس برقرار نشد
+                {db.dbError && <span className="text-xs opacity-70"> — {db.dbError}</span>}
+              </li>
+            )}
+            {db.dbConnected && !db.providerKeysTableExists && (
+              <li>جدول <code dir="ltr">provider_keys</code> وجود ندارد — مایگریشن اجرا نشده است. اپ را ری‌استارت کنید.</li>
+            )}
+            {!db.hasKeySecret && (
+              <li>متغیر محیطی <code dir="ltr">RAVI_KEY_SECRET</code> تنظیم نشده — بدون آن ذخیره و خوانش کلیدها ممکن نیست.</li>
+            )}
+            {db.dbConnected && db.providerKeysTableExists && db.hasKeySecret && db.storedKeyCount === 0 && (
+              <li>هیچ کلیدی در دیتابیس ذخیره نشده است.</li>
+            )}
+          </ul>
+        </div>
+      )}
       {accessDenied && (
         <p className="rounded-2xl bg-destructive/15 p-4 text-sm text-destructive-foreground">
           {errorText(overview.error, "دریافت وضعیت سرویس‌ها ناموفق بود.")}

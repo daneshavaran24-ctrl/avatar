@@ -49,7 +49,8 @@ export async function loadStoredKeys(): Promise<Partial<Record<ManagedKeyName, s
       const value = decrypt(row.value_ciphertext);
       if (value) out[row.name as ManagedKeyName] = value;
     }
-  } catch {
+  } catch (error) {
+    console.error("[KeyStore] loadStoredKeys failed:", error instanceof Error ? error.message : error);
     return out;
   }
   return out;
@@ -63,7 +64,8 @@ export async function saveStoredKey(name: ManagedKeyName, value: string) {
       ON CONFLICT (name) DO UPDATE
         SET value_ciphertext = EXCLUDED.value_ciphertext, updated_at = now()
     `;
-  } catch {
+  } catch (error) {
+    console.error("[KeyStore] saveStoredKey failed:", error instanceof Error ? error.message : error);
     throw new Error("ذخیرهٔ کلید ناموفق بود.");
   }
   return { ok: true as const };
@@ -72,7 +74,8 @@ export async function saveStoredKey(name: ManagedKeyName, value: string) {
 export async function deleteStoredKey(name: ManagedKeyName) {
   try {
     await sql`DELETE FROM provider_keys WHERE name = ${name}`;
-  } catch {
+  } catch (error) {
+    console.error("[KeyStore] deleteStoredKey failed:", error instanceof Error ? error.message : error);
     throw new Error("حذف کلید ناموفق بود.");
   }
   return { ok: true as const };

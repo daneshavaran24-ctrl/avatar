@@ -153,6 +153,58 @@ export const restoreSettingsHistory = createServerFn({ method: "POST" })
     return restoreSettingsVersion(data, context.userId);
   });
 
+export const diagnoseDatabaseHealth = createServerFn({ method: "GET" })
+  .middleware([requireAdminSession])
+  .handler(async () => {
+    const { sql } = await import("@/lib/db/client.server");
+    const result: {
+      dbConnected: boolean;
+      dbError: string | null;
+      providerKeysTableExists: boolean;
+      storedKeyCount: number;
+      hasKeySecret: boolean;
+    } = {
+      dbConnected: false,
+      dbError: null,
+      providerKeysTableExists: false,
+      storedKeyCount: 0,
+      hasKeySecret: Boolean(process.env["RAVI_KEY_SECRET"]),
+    };
+
+    try {
+      await sql`SELECT 1`;
+      result.dbConnected = true;
+    } catch (error) {
+      result.dbError = error instanceof Error ? error.message : String(error);
+      return result;
+    }
+
+    try {
+      const [row] = await sql<{ exists: boolean }[]>`
+        SELECT EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_name = 'provider_keys'
+        ) AS exists
+      `;
+      result.providerKeysTableExists = row?.exists ?? false;
+    } catch {
+      return result;
+    }
+
+    if (result.providerKeysTableExists) {
+      try {
+        const [row] = await sql<{ count: string }[]>`
+          SELECT count(*)::text FROM provider_keys
+        `;
+        result.storedKeyCount = Number(row?.count ?? 0);
+      } catch {
+        // count failed but table exists
+      }
+    }
+
+    return result;
+  });
+
 export const saveProviderKey = createServerFn({ method: "POST" })
   .middleware([requireAdminSession])
   .inputValidator((data: unknown) => saveKeySchema.parse(data))
