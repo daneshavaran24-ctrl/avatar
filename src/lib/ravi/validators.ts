@@ -81,3 +81,13 @@ export const saveKeySchema = z.object({
 export const persianVoicePreferenceSchema = z.object({
   prefer: z.enum(["male", "female"]).default("male"),
 });
+
+export const createAdminSchema = z.object({
+  email: z.string().email().max(320),
+  password: z.string().min(12).max(200),
+  role: z.enum(["admin", "user"]).default("admin"),
+});
+
+export const deleteAdminSchema = z.object({
+  userId: z.string().uuid(),
+});

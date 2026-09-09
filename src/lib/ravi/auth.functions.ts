@@ -1,10 +1,7 @@
-// Admin authentication endpoints.
-//
-// Login, logout, whoami — and deliberately nothing else. There is no signup and
-// no password reset: accounts come from scripts/seed-admin.ts only, which is
-// also how a forgotten password is recovered.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireAdminSession } from "./admin.middleware";
+import { createAdminSchema, deleteAdminSchema } from "./validators";
 
 const credentialsSchema = z.object({
   email: z.string().email().max(320),
@@ -57,3 +54,65 @@ export const adminWhoami = createServerFn({ method: "GET" }).handler(async () =>
   const session = await getAdminSession();
   return session ? { email: session.email } : null;
 });
+
+export const listAdminUsers = createServerFn({ method: "GET" })
+  .middleware([requireAdminSession])
+  .handler(async () => {
+    const { sql } = await import("@/lib/db/client.server");
+    const rows = await sql<{ id: string; email: string; role: string; created_at: string }[]>`
+      SELECT u.id, u.email, r.role::text, u.created_at::text
+      FROM admin_users u
+      JOIN user_roles r ON r.user_id = u.id
+      ORDER BY u.created_at ASC
+    `;
+    return rows;
+  });
+
+export const createAdminUser = createServerFn({ method: "POST" })
+  .middleware([requireAdminSession])
+  .inputValidator((data: unknown) => createAdminSchema.parse(data))
+  .handler(async ({ data }) => {
+    const { sql } = await import("@/lib/db/client.server");
+    const bcrypt = await import("bcryptjs");
+
+    const email = data.email.trim().toLowerCase();
+    const passwordHash = await bcrypt.hash(data.password, 12);
+
+    try {
+      const [user] = await sql<{ id: string }[]>`
+        INSERT INTO admin_users (email, password_hash)
+        VALUES (${email}, ${passwordHash})
+        RETURNING id
+      `;
+
+      await sql`
+        INSERT INTO user_roles (user_id, role)
+        VALUES (${user.id}, ${data.role})
+        ON CONFLICT (user_id, role) DO NOTHING
+      `;
+
+      return { ok: true as const, id: user.id };
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes("unique")) {
+        throw new Error("این ایمیل قبلاً ثبت شده است.");
+      }
+      throw err;
+    }
+  });
+
+export const deleteAdminUser = createServerFn({ method: "POST" })
+  .middleware([requireAdminSession])
+  .inputValidator((data: unknown) => deleteAdminSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    if (data.userId === context.userId) {
+      throw new Error("نمی‌توانید حساب خودتان را حذف کنید.");
+    }
+
+    const { sql } = await import("@/lib/db/client.server");
+    const [deleted] = await sql<{ id: string }[]>`
+      DELETE FROM admin_users WHERE id = ${data.userId} RETURNING id
+    `;
+
+    if (!deleted) throw new Error("کاربر یافت نشد.");
+    return { ok: true as const };
+  });

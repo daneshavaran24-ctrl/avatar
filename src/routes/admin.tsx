@@ -10,6 +10,7 @@ import { AdminBehavior } from "@/components/ravi/AdminBehavior";
 import { AdminConversations } from "@/components/ravi/AdminConversations";
 import { AdminKnowledge } from "@/components/ravi/AdminKnowledge";
 import { AdminConnections } from "@/components/ravi/AdminConnections";
+import { AdminUsers } from "@/components/ravi/AdminUsers";
 import { getOverview } from "@/lib/ravi/admin.functions";
 import { adminLogout, adminWhoami } from "@/lib/ravi/auth.functions";
 import { SOURCE_LABELS, type SourceType } from "@/lib/ravi/types";
@@ -102,6 +103,7 @@ function AdminPage() {
             <TabsTrigger value="behavior">رفتار و سیاست‌ها</TabsTrigger>
             <TabsTrigger value="conversations">گفتگوها</TabsTrigger>
             <TabsTrigger value="connections">کلیدها و آواتار</TabsTrigger>
+            <TabsTrigger value="users">مدیران</TabsTrigger>
           </TabsList>
           <TabsContent value="knowledge" className="mt-4">
             <AdminKnowledge />
@@ -114,6 +116,9 @@ function AdminPage() {
           </TabsContent>
           <TabsContent value="connections" className="mt-4">
             <AdminConnections />
+          </TabsContent>
+          <TabsContent value="users" className="mt-4">
+            <AdminUsers />
           </TabsContent>
         </Tabs>
       </div>
