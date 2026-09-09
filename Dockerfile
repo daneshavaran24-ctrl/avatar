@@ -25,6 +25,7 @@ RUN npx esbuild scripts/migrate.ts --bundle --platform=node --format=esm \
 FROM node:20-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+ENV HOST=0.0.0.0
 
 COPY --from=build /app/.output ./.output
 COPY --from=build /app/package.json ./package.json
