@@ -16,8 +16,8 @@ const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "migr
 async function main() {
   const url = process.env["DATABASE_URL"];
   if (!url) {
-    console.error("DATABASE_URL تنظیم نشده است.");
-    process.exit(1);
+    console.warn("[migrate] DATABASE_URL is not set — skipping migration.");
+    return;
   }
 
   const sql = postgres(url, {

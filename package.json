@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "vite build && tsx scripts/migrate.ts",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "start": "HOST=0.0.0.0 NITRO_HOST=0.0.0.0 NITRO_PORT=3000 NODE_ENV=production node .output/server/index.mjs",
