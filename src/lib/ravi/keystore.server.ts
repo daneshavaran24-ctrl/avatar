@@ -2,13 +2,10 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 import { sql } from "@/lib/db/client.server";
 
 export const MANAGED_KEYS = [
-  "HEYGEN_API_KEY",
-  "OPENROUTER_API_KEY",
-  "GROQ_API_KEY",
-  "ELEVENLABS_API_KEY",
   "OPENAI_API_KEY",
-  "HEYGEN_AVATAR_ID",
-  "HEYGEN_VOICE_ID",
+  "HEYGEN_API_KEY",
+  "LIVEAVATAR_AVATAR_ID",
+  "LIVEAVATAR_CONTEXT_ID",
 ] as const;
 
 export type ManagedKeyName = (typeof MANAGED_KEYS)[number];

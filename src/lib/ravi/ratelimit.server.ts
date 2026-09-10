@@ -1,8 +1,8 @@
 // Rate limiting for the public endpoints.
 //
 // The front page is open to the internet and every endpoint behind it spends
-// real money: OpenAI tokens, Whisper/Deepgram minutes, ElevenLabs characters,
-// and — most expensively — HeyGen streaming sessions. Limits are keyed on both
+// real money: OpenAI tokens, Whisper/Deepgram minutes, and — most expensively
+// — LiveAvatar sessions. Limits are keyed on both
 // the visitor cookie and the client IP so clearing cookies does not reset the
 // budget, and avatar sessions additionally carry a global daily ceiling, which
 // is the only thing that bounds a distributed flood.

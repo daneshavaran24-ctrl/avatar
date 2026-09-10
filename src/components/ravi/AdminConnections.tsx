@@ -19,7 +19,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { AdminElevenLabs } from "./AdminElevenLabs";
 import {
   checkConnection,
   diagnoseDatabaseHealth,
@@ -30,18 +29,14 @@ import {
   restoreSettingsHistory,
   saveProviderKey,
   selectAvatar,
-  setOpenRouterModel,
   setServiceEnabled,
 } from "@/lib/ravi/admin.functions";
 
 type ManagedKeyName =
   | "OPENAI_API_KEY"
   | "HEYGEN_API_KEY"
-  | "OPENROUTER_API_KEY"
-  | "GROQ_API_KEY"
-  | "ELEVENLABS_API_KEY"
-  | "HEYGEN_AVATAR_ID"
-  | "HEYGEN_VOICE_ID";
+  | "LIVEAVATAR_AVATAR_ID"
+  | "LIVEAVATAR_CONTEXT_ID";
 
 interface KeyStatus {
   name: string;
@@ -50,8 +45,8 @@ interface KeyStatus {
   fromEnv: boolean;
 }
 
-type ConnectionKey = "openai" | "heygen" | "openrouter" | "groq" | "elevenlabs";
-type ToggleableKey = "heygen" | "openrouter" | "groq" | "elevenlabs";
+type ConnectionKey = "openai" | "heygen";
+type ToggleableKey = "heygen";
 
 interface LastCheck {
   ok: boolean;
@@ -85,46 +80,24 @@ const SERVICES: {
   key: ConnectionKey;
   title: string;
   description: string;
-  secret: ManagedKeyName | null;
+  secrets: ManagedKeyName[];
   docs: string | null;
 }[] = [
   {
     key: "openai",
     title: "OpenAI (کلید اصلی و الزامی)",
     description:
-      "موتور تولید پاسخ، بردارسازی اسناد، تبدیل گفتار به متن و صدای جایگزین. بدون این کلید سامانه پاسخ نمی‌دهد.",
-    secret: "OPENAI_API_KEY",
+      "موتور تولید پاسخ، بردارسازی اسناد، تبدیل گفتار به متن و تولید صدای فارسی. بدون این کلید سامانه پاسخ نمی‌دهد.",
+    secrets: ["OPENAI_API_KEY"],
     docs: "https://platform.openai.com/api-keys",
   },
   {
     key: "heygen",
-    title: "آواتار زنده (HeyGen یا LiveAvatar)",
+    title: "LiveAvatar (آواتار زنده)",
     description:
-      "کلید HeyGen یا کلید LiveAvatar (app.liveavatar.com/developers) را می‌پذیرد؛ نوع سرویس خودکار تشخیص داده می‌شود. بدون کلید، گویِ نمادین و صدای مرورگر جایگزین می‌شود.",
-    secret: "HEYGEN_API_KEY",
+      "کلید را از app.liveavatar.com/developers بگیرید. شناسهٔ آواتار الزامی است؛ بدون شناسهٔ context حالت sandbox فعال می‌شود.",
+    secrets: ["HEYGEN_API_KEY", "LIVEAVATAR_AVATAR_ID", "LIVEAVATAR_CONTEXT_ID"],
     docs: "https://app.liveavatar.com/developers",
-  },
-  {
-    key: "openrouter",
-    title: "OpenRouter",
-    description: "در صورت ثبت کلید، تولید پاسخ به‌جای لاوبل از OpenRouter انجام می‌شود.",
-    secret: "OPENROUTER_API_KEY",
-    docs: "https://openrouter.ai/keys",
-  },
-  {
-    key: "groq",
-    title: "Groq (گفتار به متن)",
-    description: "در صورت ثبت کلید، رونویسی صدای فارسی با Whisper روی Groq انجام می‌شود.",
-    secret: "GROQ_API_KEY",
-    docs: "https://console.groq.com/keys",
-  },
-  {
-    key: "elevenlabs",
-    title: "ElevenLabs (صدای فارسی روان)",
-    description:
-      "با ثبت کلید ElevenLabs، پاسخ‌ها با صدای چندزبانهٔ طبیعی و فارسیِ روان خوانده می‌شود. سپس صدا را از گالری پایین انتخاب کنید.",
-    secret: "ELEVENLABS_API_KEY",
-    docs: "https://elevenlabs.io/app/settings/api-keys",
   },
 ];
 
@@ -213,12 +186,9 @@ export function AdminConnections() {
               </p>
               <ul className="mt-2 space-y-1 text-xs" dir="ltr">
                 <li className="font-mono text-yellow-200">OPENAI_API_KEY <span className="text-yellow-100/50">(الزامی — موتور پاسخ)</span></li>
-                <li className="font-mono text-yellow-200">HEYGEN_API_KEY <span className="text-yellow-100/50">(کلید LiveAvatar)</span></li>
-                <li className="font-mono text-yellow-200">LIVEAVATAR_AVATAR_ID <span className="text-yellow-100/50">(شناسهٔ آواتار)</span></li>
-                <li className="font-mono text-yellow-200">LIVEAVATAR_CONTEXT_ID <span className="text-yellow-100/50">(شناسهٔ context)</span></li>
-                <li className="font-mono text-yellow-200">OPENROUTER_API_KEY <span className="text-yellow-100/50">(اختیاری)</span></li>
-                <li className="font-mono text-yellow-200">GROQ_API_KEY <span className="text-yellow-100/50">(اختیاری)</span></li>
-                <li className="font-mono text-yellow-200">ELEVENLABS_API_KEY <span className="text-yellow-100/50">(اختیاری)</span></li>
+                <li className="font-mono text-yellow-200">HEYGEN_API_KEY <span className="text-yellow-100/50">(الزامی — کلید LiveAvatar)</span></li>
+                <li className="font-mono text-yellow-200">LIVEAVATAR_AVATAR_ID <span className="text-yellow-100/50">(الزامی — شناسهٔ آواتار)</span></li>
+                <li className="font-mono text-yellow-200">LIVEAVATAR_CONTEXT_ID <span className="text-yellow-100/50">(اختیاری — بدون آن حالت sandbox)</span></li>
               </ul>
               <p className="mt-2 text-xs text-yellow-100/70">
                 پس از تنظیم متغیرها، اپ را ری‌استارت کنید. وضعیت هر کلید در کارت‌های زیر نشان داده می‌شود.
@@ -261,6 +231,7 @@ export function AdminConnections() {
             const status = data?.connections.find((item) => item.key === service.key);
             const result = results[service.key];
             const lastCheck = (status?.lastCheck ?? null) as LastCheck | null;
+            const primaryKey = data?.keys?.find((k) => k.name === service.secrets[0]);
             return (
               <div key={service.key} className="rounded-2xl bg-surface-2 p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -278,14 +249,14 @@ export function AdminConnections() {
                     }`}
                   >
                     {status?.configured
-                      ? data?.keys?.find((k) => k.name === service.secret)?.fromEnv && !data?.keys?.find((k) => k.name === service.secret)?.stored
+                      ? primaryKey?.fromEnv && !primaryKey?.stored
                         ? "از متغیر محیطی"
                         : "ثبت‌شده"
                       : "ثبت‌نشده"}
                   </span>
                 </div>
 
-                {service.secret && (
+                {service.key === "heygen" && (
                   <div className="mt-3 flex items-center justify-between rounded-xl bg-background/40 px-3 py-2">
                     <Label htmlFor={`toggle-${service.key}`} className="text-xs">
                       {status?.enabled === false ? "غیرفعال" : "فعال"}
@@ -301,12 +272,13 @@ export function AdminConnections() {
                   </div>
                 )}
 
-                {service.secret && (
+                {service.secrets.map((secret) => (
                   <KeyField
-                    name={service.secret}
-                    status={data?.keys?.find((item) => item.name === service.secret)}
+                    key={secret}
+                    name={secret}
+                    status={data?.keys?.find((item) => item.name === secret)}
                   />
-                )}
+                ))}
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <Button
@@ -363,20 +335,14 @@ export function AdminConnections() {
 
         {data && (
           <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <span className="rounded-full bg-surface-2 px-3 py-1">موتور پاسخ فعال: OpenAI</span>
+            <span className="rounded-full bg-surface-2 px-3 py-1">گفتار به متن فعال: OpenAI</span>
             <span className="rounded-full bg-surface-2 px-3 py-1">
-              موتور پاسخ فعال: {data.activeChat === "openrouter" ? "OpenRouter" : "لاوبل"}
-            </span>
-            <span className="rounded-full bg-surface-2 px-3 py-1">
-              گفتار به متن فعال: {data.activeStt === "groq" ? "Groq" : "لاوبل"}
-            </span>
-            <span className="rounded-full bg-surface-2 px-3 py-1">
-              صحنهٔ آواتار: {data.avatarActive ? "HeyGen زنده" : "گوی نمادین + صدای مرورگر"}
+              صحنهٔ آواتار: {data.avatarActive ? "LiveAvatar زنده" : "پیکربندی نشده"}
             </span>
           </div>
         )}
       </section>
-
-      {data?.activeChat === "openrouter" && <ModelPicker current={data.openRouterModel} />}
 
       <AvatarGallery
         heygenReady={Boolean(data?.avatarActive)}
@@ -384,18 +350,9 @@ export function AdminConnections() {
         vendor={data?.avatarVendor ?? null}
       />
 
-      <AdminElevenLabs
-        configured={Boolean(data?.connections.find((item) => item.key === "elevenlabs")?.configured)}
-        current={data?.elevenlabs}
-      />
-
       <SettingsHistory />
     </div>
   );
-}
-
-function ModelPicker({ current }: { current: string }) {
-  return <ModelPickerInner current={current} />;
 }
 
 function KeyField({ name, status }: { name: ManagedKeyName; status: KeyStatus | undefined }) {
@@ -496,47 +453,6 @@ function KeyField({ name, status }: { name: ManagedKeyName; status: KeyStatus | 
   );
 }
 
-function ModelPickerInner({ current }: { current: string }) {
-  const queryClient = useQueryClient();
-  const saveFn = useServerFn(setOpenRouterModel);
-  const [model, setModel] = useState(current);
-
-  const save = useMutation({
-    mutationFn: () => saveFn({ data: model.trim() }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "connections"] }),
-  });
-
-  return (
-    <section className="rounded-3xl glass-panel p-5">
-      <h2 className="text-base font-semibold">مدل OpenRouter</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        شناسهٔ مدل مطابق مستندات OpenRouter، مثلاً google/gemini-2.5-flash
-      </p>
-      <div className="mt-3 flex flex-wrap items-end gap-2">
-        <div className="flex min-w-64 flex-1 flex-col gap-2">
-          <Label htmlFor="or-model">شناسهٔ مدل</Label>
-          <Input
-            id="or-model"
-            dir="ltr"
-            value={model}
-            onChange={(event) => setModel(event.target.value)}
-            className="bg-surface-2 text-left"
-          />
-        </div>
-        <Button
-          type="button"
-          disabled={save.isPending || !model.trim()}
-          onClick={() => save.mutate()}
-        >
-          {save.isPending && <Loader2 className="size-4 animate-spin" />}
-          ذخیرهٔ مدل
-        </Button>
-      </div>
-      {save.isSuccess && <p className="mt-2 text-xs text-primary">مدل ذخیره شد.</p>}
-    </section>
-  );
-}
-
 function AvatarGallery({
   heygenReady,
   current,
@@ -593,10 +509,10 @@ function AvatarGallery({
   if (!heygenReady) {
     return (
       <section className="rounded-3xl glass-panel p-5">
-        <h2 className="text-base font-semibold">گالری چهره‌های HeyGen</h2>
+        <h2 className="text-base font-semibold">گالری چهره‌های LiveAvatar</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          پس از ثبت کلید HeyGen و فعال بودن این سرویس، فهرست چهره‌های تعاملی حساب شما همین‌جا
-          نمایش داده می‌شود و می‌توانید چهره و صدای دستیار را انتخاب کنید.
+          پس از ثبت کلید LiveAvatar و فعال بودن این سرویس، فهرست چهره‌های حساب شما همین‌جا
+          نمایش داده می‌شود تا شناسهٔ آواتار را پیدا کرده و در فیلد LIVEAVATAR_AVATAR_ID بگذارید.
         </p>
       </section>
     );
@@ -679,7 +595,7 @@ function AvatarGallery({
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold">گالری چهره‌های HeyGen</h2>
+          <h2 className="text-base font-semibold">گالری چهره‌های LiveAvatar</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             چهرهٔ فعلی: {current?.avatarName || current?.avatarId || "انتخاب نشده"}
             {current?.voiceName ? ` — صدا: ${current.voiceName}` : ""}
@@ -713,7 +629,7 @@ function AvatarGallery({
       )}
       {looks.isError && (
         <p className="mt-4 text-sm text-destructive-foreground">
-          دریافت فهرست چهره‌ها ناموفق بود. اعتبار کلید HeyGen را بررسی کنید.
+          دریافت فهرست چهره‌ها ناموفق بود. اعتبار کلید LiveAvatar را بررسی کنید.
         </p>
       )}
 

@@ -30,8 +30,6 @@ const TTS_VOICES = [
 
 const PROVIDER_LABELS: Record<string, string> = {
   openai: "OpenAI (کلید سازمانی)",
-  openrouter: "OpenRouter (کلید سازمانی)",
-  groq: "Groq Whisper (کلید سازمانی)",
   none: "تنظیم نشده",
 };
 

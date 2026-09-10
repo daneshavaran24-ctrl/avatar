@@ -9,12 +9,6 @@ import {
   PUNCTUATION_BONUS,
   LOW_PERSIAN_PENALTY,
   MIN_TRANSCRIPT_LENGTH,
-  OPENROUTER_RETRY_DELAY_MS,
-  OPENROUTER_MAX_ATTEMPTS,
-  HTTP_UNAUTHORIZED,
-  HTTP_PAYMENT_REQUIRED,
-  HTTP_FORBIDDEN,
-  HTTP_TOO_MANY_REQUESTS,
   ERROR_AUDIO_TOO_SHORT,
   ERROR_TRANSCRIPTION_EMPTY,
   DEEPGRAM_MODEL_ATTEMPTS,
@@ -24,85 +18,64 @@ import {
 } from "./constants";
 
 /**
- * Provider layer. OpenAI is the baseline for chat, embeddings and
- * speech-to-text; OPENROUTER_API_KEY / GROQ_API_KEY / DEEPGRAM_API_KEY switch
- * the matching capability to those providers without touching the answer
- * pipeline. There is no built-in gateway to fall back to, so an unset
- * OPENAI_API_KEY is a configuration error rather than a degraded mode.
+ * Provider layer. OpenAI is the only configurable engine for chat, embeddings,
+ * speech-to-text and speech synthesis; DEEPGRAM_API_KEY optionally adds a
+ * second transcription engine. There is no gateway to fall back to, so an
+ * unset OPENAI_API_KEY is a configuration error rather than a degraded mode.
  */
 export const EMBEDDING_MODEL = "text-embedding-3-small";
 
 interface ServiceSwitches {
   heygen: boolean;
-  openrouter: boolean;
-  groq: boolean;
 }
 
 /**
  * Per-service switches from the admin panel. A disabled service is skipped.
- * @returns Service enablement status for all providers
+ * @returns Service enablement status
  */
 export async function serviceSwitches(): Promise<ServiceSwitches> {
   try {
     const [data] = await sql<
-      { heygen_enabled: boolean; openrouter_enabled: boolean; groq_enabled: boolean }[]
-    >`SELECT heygen_enabled, openrouter_enabled, groq_enabled FROM app_settings LIMIT 1`;
+      { heygen_enabled: boolean }[]
+    >`SELECT heygen_enabled FROM app_settings LIMIT 1`;
 
-    return {
-      heygen: data?.heygen_enabled ?? true,
-      openrouter: data?.openrouter_enabled ?? true,
-      groq: data?.groq_enabled ?? true,
-    };
+    return { heygen: data?.heygen_enabled ?? true };
   } catch (error) {
     console.error("[Config] Exception loading service switches:",
       error instanceof Error ? error.message : String(error)
     );
-    return { heygen: true, openrouter: true, groq: true };
+    return { heygen: true };
   }
 }
 
 /** Panel-entered keys win over environment variables; disabled services report no key. */
 export async function providerConfig() {
   const [stored, enabled] = await Promise.all([loadStoredKeys(), serviceSwitches()]);
-  const openRouterKey = stored.OPENROUTER_API_KEY || process.env["OPENROUTER_API_KEY"] || null;
-  const groqKey = stored.GROQ_API_KEY || process.env["GROQ_API_KEY"] || null;
   const heygenKey = stored.HEYGEN_API_KEY || process.env["HEYGEN_API_KEY"] || null;
   const openAiKey = process.env["OPENAI_API_KEY"] || stored.OPENAI_API_KEY || null;
   return {
     enabled,
-    storedKeys: { openRouterKey, groqKey, heygenKey, openAiKey },
+    storedKeys: { heygenKey, openAiKey },
     openAiKey,
     openAiModel: process.env["OPENAI_MODEL"] || "gpt-4o-mini",
-    openRouterKey: enabled.openrouter ? openRouterKey : null,
-    openRouterModel: process.env["OPENROUTER_MODEL"] || "google/gemini-2.5-flash",
-    groqKey: enabled.groq ? groqKey : null,
-    groqSttModel: process.env["GROQ_STT_MODEL"] || "whisper-large-v3-turbo",
     heygenKey: enabled.heygen ? heygenKey : null,
-    heygenAvatarId: stored.HEYGEN_AVATAR_ID || process.env["HEYGEN_AVATAR_ID"] || null,
-    heygenVoiceId: stored.HEYGEN_VOICE_ID || process.env["HEYGEN_VOICE_ID"] || null,
-    liveAvatarAvatarId: process.env["LIVEAVATAR_AVATAR_ID"] || null,
-    liveAvatarContextId: process.env["LIVEAVATAR_CONTEXT_ID"] || null,
+    liveAvatarAvatarId:
+      stored.LIVEAVATAR_AVATAR_ID || process.env["LIVEAVATAR_AVATAR_ID"] || null,
+    liveAvatarContextId:
+      stored.LIVEAVATAR_CONTEXT_ID || process.env["LIVEAVATAR_CONTEXT_ID"] || null,
   };
 }
 
-/**
- * Active chat provider. Priority: OpenAI > OpenRouter.
- * "none" means nothing is configured and answering will fail.
- */
+/** Active chat provider. "none" means nothing is configured and answering will fail. */
 export async function chatProviderName(): Promise<ChatProvider> {
   const config = await providerConfig();
-  if (config.openAiKey) return "openai";
-  return config.openRouterKey ? "openrouter" : "none";
+  return config.openAiKey ? "openai" : "none";
 }
 
-/**
- * Active speech-to-text provider. Priority: OpenAI > Groq.
- * "none" means nothing is configured and transcription will fail.
- */
+/** Active speech-to-text provider. "none" means transcription will fail. */
 export async function sttProviderName(): Promise<SttProvider> {
   const config = await providerConfig();
-  if (config.openAiKey) return "openai";
-  return config.groqKey ? "groq" : "none";
+  return config.openAiKey ? "openai" : "none";
 }
 
 interface ChatMessage {
@@ -114,8 +87,8 @@ export interface ChatResult {
   text: string;
   tokenInput: number | null;
   tokenOutput: number | null;
-  /** Provider that actually produced the answer (may differ after a fallback). */
-  provider?: "openai" | "openrouter";
+  /** Provider that produced the answer. */
+  provider?: "openai";
 }
 
 /** Records why a provider was skipped so the admin panel shows the real cause. */
@@ -136,44 +109,14 @@ async function recordProviderDegradation(provider: string, message: string) {
 }
 
 /**
- * Terminal OpenRouter failures (bad key, no credits, blocked) — never retryable.
- * @param status HTTP status code from OpenRouter API
- * @returns true if the error is permanent and should not be retried
- */
-function isTerminalOpenRouterStatus(status: number): boolean {
-  return (
-    status === HTTP_UNAUTHORIZED ||
-    status === HTTP_PAYMENT_REQUIRED ||
-    status === HTTP_FORBIDDEN
-  );
-}
-
-/**
- * Returns a Persian error message for OpenRouter API status codes.
- * @param status HTTP status code from OpenRouter
- * @returns Human-readable Persian error message
- */
-export function persianProviderMessage(status: number): string {
-  if (status === HTTP_PAYMENT_REQUIRED) return "اعتبار حساب OpenRouter تمام شده است.";
-  if (status === HTTP_UNAUTHORIZED) return "کلید OpenRouter نامعتبر است.";
-  if (status === HTTP_FORBIDDEN) return "دسترسی کلید OpenRouter مسدود شده است.";
-  if (status === HTTP_TOO_MANY_REQUESTS) return "تعداد درخواست‌ها به سقف OpenRouter رسیده است.";
-  return `سرویس OpenRouter پاسخ نداد (کد ${status}).`;
-}
-
-/**
- * Chat completion with cascading fallback across multiple providers.
- *
- * Priority order:
- * 1. OpenAI (if OPENAI_API_KEY configured)
- * 2. OpenRouter (if OPENROUTER_API_KEY configured)
+ * Chat completion via OpenAI.
  *
  * @param messages Array of chat messages (system, user, assistant)
  * @param options Configuration options for the chat request
- * @param options.model Override the default model for the provider
+ * @param options.model Override the default model
  * @param options.maxTokens Maximum tokens to generate in the response
- * @returns Chat result with generated text, token usage, and provider used
- * @throws {ProviderError} If every configured provider fails
+ * @returns Chat result with generated text and token usage
+ * @throws {ProviderError} If the request fails
  */
 export async function chatComplete(
   messages: ChatMessage[],
@@ -214,76 +157,11 @@ export async function chatComplete(
         console.error("openai chat failed", response.status, detail);
         await recordProviderDegradation(
           "openai",
-          `سرویس OpenAI پاسخ نداد (کد ${response.status}). تلاش با سرویس بعدی…`,
+          `سرویس OpenAI پاسخ نداد (کد ${response.status}).`,
         );
       }
     } catch (error) {
       console.error("openai chat error", error);
-    }
-  }
-
-  if (config.openRouterKey) {
-    const model = options.model ?? config.openRouterModel;
-    for (let attempt = 0; attempt < OPENROUTER_MAX_ATTEMPTS; attempt += 1) {
-      let status = 0;
-      let detail = "";
-      try {
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${config.openRouterKey}`,
-          },
-          body: JSON.stringify({
-            model,
-            messages,
-            ...(options.maxTokens ? { max_tokens: options.maxTokens } : {}),
-          }),
-        });
-        if (response.ok) {
-          const json = (await response.json()) as {
-            choices?: { message?: { content?: string } }[];
-            usage?: { prompt_tokens?: number; completion_tokens?: number };
-          };
-          const text = json.choices?.[0]?.message?.content?.trim() ?? "";
-          if (text) {
-            return {
-              text,
-              tokenInput: json.usage?.prompt_tokens ?? null,
-              tokenOutput: json.usage?.completion_tokens ?? null,
-              provider: "openrouter",
-            };
-          }
-          detail = "empty response";
-          console.error("[Chat] OpenRouter returned empty response:", { model, attempt });
-        } else {
-          status = response.status;
-          detail = (await response.text()).slice(0, 300);
-          console.error("[Chat] OpenRouter request failed:", {
-            status,
-            attempt,
-            detail: detail.slice(0, 100),
-          });
-        }
-      } catch (error) {
-        detail = error instanceof Error ? error.message : "network error";
-        console.error("[Chat] OpenRouter network error:", {
-          error: detail,
-          attempt,
-        });
-      }
-
-      const terminal = isTerminalOpenRouterStatus(status);
-      if (terminal || attempt === OPENROUTER_MAX_ATTEMPTS - 1) {
-        await recordProviderDegradation(
-          "openrouter",
-          `${persianProviderMessage(status)} پاسخ‌ها موقتاً با مدل داخلی تولید می‌شود. (${detail})`,
-        );
-        break;
-      }
-      // transient (429/5xx/network): one short retry before falling back
-      console.log(`[Chat] Retrying OpenRouter after ${OPENROUTER_RETRY_DELAY_MS}ms...`);
-      await new Promise((resolve) => setTimeout(resolve, OPENROUTER_RETRY_DELAY_MS));
     }
   }
 
@@ -296,9 +174,8 @@ export async function chatComplete(
 
 
 /**
- * One OpenAI embeddings call. Embeddings have no second provider: OpenRouter
- * does not serve text-embedding-3-small, and mixing embedding models would make
- * stored vectors incomparable with query vectors.
+ * One OpenAI embeddings call. Mixing embedding models would make stored
+ * vectors incomparable with query vectors, so there is no second provider.
  */
 async function requestEmbeddings(input: string[]): Promise<number[][]> {
   const config = await providerConfig();
@@ -489,12 +366,11 @@ async function transcribeWithDeepgram(
 }
 
 /**
- * Whisper transcription with cascading provider fallback.
- * Priority: OpenAI > Groq
+ * Whisper transcription via OpenAI.
  * @param audio Audio blob to transcribe
  * @param filename Original filename for MIME type detection
  * @param config Provider configuration with API keys
- * @returns Cleaned transcript or null if all providers fail
+ * @returns Cleaned transcript or null if transcription fails
  */
 async function transcribeWithWhisper(
   audio: Blob,
@@ -523,27 +399,9 @@ async function transcribeWithWhisper(
       } else {
         console.error("openai transcription failed", (await response.text()).slice(0, 300));
       }
+      return null;
     }
-    if (config.groqKey) {
-      const groqForm = new FormData();
-      groqForm.append("file", audio, filename || "speech.wav");
-      groqForm.append("temperature", "0");
-      groqForm.append("language", "fa");
-      groqForm.append("model", config.groqSttModel);
-      groqForm.append("response_format", "json");
-      const response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${config.groqKey}` },
-        body: groqForm,
-      });
-      if (!response.ok) {
-        console.error("groq transcription failed", (await response.text()).slice(0, 300));
-        return null;
-      }
-      const json = (await response.json()) as { text?: string };
-      return cleanTranscript(json.text ?? "");
-    }
-    console.error("[STT] No Whisper provider configured (set OPENAI_API_KEY or GROQ_API_KEY)");
+    console.error("[STT] No Whisper provider configured (set OPENAI_API_KEY)");
     return null;
   } catch (error) {
     console.error("whisper transcription error", error);
@@ -593,7 +451,7 @@ function scorePersianTranscript(text: string): number {
  * Persian speech-to-text with parallel engine processing.
  *
  * Strategy:
- * - Deepgram (nova-3/whisper-large) and Whisper (OpenAI/Groq) run in parallel
+ * - Deepgram (nova-3/whisper-large) and OpenAI Whisper run in parallel
  * - Each transcript is scored for Persian quality
  * - The highest-scoring transcript wins
  *

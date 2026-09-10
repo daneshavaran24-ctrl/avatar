@@ -180,9 +180,6 @@ export async function runAnswerPipeline(params: {
         ...history,
         { role: "user", content: question },
       ],
-      provider === "openrouter" && settings.openrouter_model
-        ? { model: settings.openrouter_model }
-        : {},
     );
     answer = result.text;
     tokenInput = result.tokenInput;

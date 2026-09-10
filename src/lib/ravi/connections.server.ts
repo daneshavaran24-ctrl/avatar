@@ -2,10 +2,9 @@ import { sql } from "@/lib/db/client.server";
 import { providerConfig } from "./providers.server";
 import { storedKeyStatus } from "./keystore.server";
 import { detectAvatarVendor } from "./heygen.server";
-import { elevenLabsKey, elevenSettings } from "./elevenlabs.server";
 
-export type ConnectionKey = "openai" | "heygen" | "openrouter" | "groq" | "elevenlabs";
-export type ToggleableKey = "heygen" | "openrouter" | "groq" | "elevenlabs";
+export type ConnectionKey = "openai" | "heygen";
+export type ToggleableKey = "heygen";
 
 export interface ConnectionStatus {
   key: ConnectionKey;
@@ -21,17 +20,14 @@ interface SettingsRow {
   heygen_voice_id: string;
   heygen_avatar_name: string;
   heygen_voice_name: string;
-  openrouter_model: string;
   heygen_enabled: boolean;
-  openrouter_enabled: boolean;
-  groq_enabled: boolean;
   connection_status: Record<string, unknown>;
 }
 
 async function settingsRow(): Promise<SettingsRow> {
   const [data] = await sql<SettingsRow[]>`
     SELECT id, heygen_avatar_id, heygen_voice_id, heygen_avatar_name, heygen_voice_name,
-           openrouter_model, heygen_enabled, openrouter_enabled, groq_enabled, connection_status
+           heygen_enabled, connection_status
     FROM app_settings
     LIMIT 1
   `;
@@ -58,10 +54,7 @@ async function recordVersion(label: string, userId: string | null) {
     heygen_voice_id: row.heygen_voice_id,
     heygen_avatar_name: row.heygen_avatar_name,
     heygen_voice_name: row.heygen_voice_name,
-    openrouter_model: row.openrouter_model,
     heygen_enabled: row.heygen_enabled,
-    openrouter_enabled: row.openrouter_enabled,
-    groq_enabled: row.groq_enabled,
   };
   await sql`
     INSERT INTO settings_versions (version, label, created_by, payload)
@@ -74,7 +67,6 @@ async function recordVersion(label: string, userId: string | null) {
 export async function connectionOverview() {
   const config = await providerConfig();
   const keys = await storedKeyStatus();
-  const eleven = await elevenSettings();
 
   let data: SettingsRow | null = null;
   try { data = await settingsRow(); } catch { /* DB unreachable — use env var defaults */ }
@@ -99,34 +91,13 @@ export async function connectionOverview() {
       enabled: config.enabled.heygen,
       lastCheck: checks["heygen"] ?? null,
     },
-    {
-      key: "openrouter",
-      configured: Boolean(config.storedKeys.openRouterKey),
-      secretName: "OPENROUTER_API_KEY",
-      enabled: config.enabled.openrouter,
-      lastCheck: checks["openrouter"] ?? null,
-    },
-    {
-      key: "groq",
-      configured: Boolean(config.storedKeys.groqKey),
-      secretName: "GROQ_API_KEY",
-      enabled: config.enabled.groq,
-      lastCheck: checks["groq"] ?? null,
-    },
-    {
-      key: "elevenlabs",
-      configured: Boolean(await elevenLabsKey()),
-      secretName: "ELEVENLABS_API_KEY",
-      enabled: eleven.enabled,
-      lastCheck: checks["elevenlabs"] ?? null,
-    },
   ];
 
   return {
     connections,
     keys,
-    activeChat: config.openRouterKey ? ("openrouter" as const) : ("openai" as const),
-    activeStt: config.groqKey ? ("groq" as const) : ("openai" as const),
+    activeChat: "openai" as const,
+    activeStt: "openai" as const,
     avatarActive: Boolean(config.heygenKey),
     avatarVendor,
     dbAvailable: data !== null,
@@ -134,13 +105,11 @@ export async function connectionOverview() {
       | { ok?: boolean; reason?: string; checked_at?: string }
       | null,
     avatar: {
-      avatarId: (data?.heygen_avatar_id || config.heygenAvatarId || ""),
-      voiceId: (data?.heygen_voice_id || config.heygenVoiceId || ""),
+      avatarId: (data?.heygen_avatar_id || config.liveAvatarAvatarId || ""),
+      voiceId: data?.heygen_voice_id || "",
       avatarName: data?.heygen_avatar_name || "",
       voiceName: data?.heygen_voice_name || "",
     },
-    openRouterModel: (data?.openrouter_model || config.openRouterModel),
-    elevenlabs: eleven,
   };
 }
 
@@ -193,7 +162,7 @@ async function runTest(key: ConnectionKey): Promise<Omit<ConnectionTestResult, "
     }
 
     if (key === "heygen") {
-      if (!config.storedKeys.heygenKey) return fail(key, "کلید HeyGen ثبت نشده است.");
+      if (!config.storedKeys.heygenKey) return fail(key, "کلید LiveAvatar ثبت نشده است.");
       const vendor = await detectAvatarVendor(config.storedKeys.heygenKey);
       const label = vendor === "liveavatar" ? "LiveAvatar" : "HeyGen";
       const response = await fetch(
@@ -217,52 +186,7 @@ async function runTest(key: ConnectionKey): Promise<Omit<ConnectionTestResult, "
         : fail(key, describeStatus(response.status));
     }
 
-    if (key === "openrouter") {
-      if (!config.storedKeys.openRouterKey) return fail(key, "کلید OpenRouter ثبت نشده است.");
-      const response = await fetch("https://openrouter.ai/api/v1/key", {
-        headers: { Authorization: `Bearer ${config.storedKeys.openRouterKey}` },
-      });
-      return response.ok
-        ? ok(
-            key,
-            config.enabled.openrouter
-              ? "کلید OpenRouter معتبر است و در خط پاسخ‌گویی استفاده می‌شود."
-              : "کلید OpenRouter معتبر است، اما سرویس در پنل غیرفعال شده است.",
-          )
-        : fail(key, describeStatus(response.status));
-    }
-
-    if (key === "elevenlabs") {
-      const elevenKey = await elevenLabsKey();
-      if (!elevenKey) return fail(key, "کلید ElevenLabs ثبت نشده است.");
-      const elevenResponse = await fetch("https://api.elevenlabs.io/v1/user/subscription", {
-        headers: { "xi-api-key": elevenKey },
-      });
-      const settings = await elevenSettings();
-      return elevenResponse.ok
-        ? ok(
-            key,
-            settings.enabled
-              ? settings.voiceId
-                ? `کلید ElevenLabs معتبر است و صدای «${settings.voiceName || settings.voiceId}» برای پاسخ‌ها استفاده می‌شود.`
-                : "کلید ElevenLabs معتبر است؛ اکنون یک صدا را از گالری انتخاب کنید."
-              : "کلید ElevenLabs معتبر است، اما سرویس در پنل غیرفعال شده است.",
-          )
-        : fail(key, describeStatus(elevenResponse.status));
-    }
-
-    if (!config.storedKeys.groqKey) return fail(key, "کلید Groq ثبت نشده است.");
-    const response = await fetch("https://api.groq.com/openai/v1/models", {
-      headers: { Authorization: `Bearer ${config.storedKeys.groqKey}` },
-    });
-    return response.ok
-      ? ok(
-          key,
-          config.enabled.groq
-            ? "کلید Groq معتبر است و برای گفتار به متن استفاده می‌شود."
-            : "کلید Groq معتبر است، اما سرویس در پنل غیرفعال شده است.",
-        )
-      : fail(key, describeStatus(response.status));
+    return fail(key, "سرویس ناشناخته است.");
   } catch {
     return fail(key, "ارتباط با سرویس برقرار نشد (سرویس در دسترس نیست یا شبکه پاسخ نداد).");
   }
@@ -285,16 +209,10 @@ function fail(key: ConnectionKey, message: string) {
 
 const TOGGLE_COLUMN: Record<ToggleableKey, string> = {
   heygen: "heygen_enabled",
-  openrouter: "openrouter_enabled",
-  groq: "groq_enabled",
-  elevenlabs: "elevenlabs_enabled",
 };
 
 const TOGGLE_LABEL: Record<ToggleableKey, string> = {
-  heygen: "HeyGen",
-  openrouter: "OpenRouter",
-  groq: "Groq",
-  elevenlabs: "ElevenLabs",
+  heygen: "LiveAvatar",
 };
 
 /** The only columns a stored settings snapshot is allowed to write back. */
@@ -303,10 +221,7 @@ const RESTORABLE_COLUMNS = [
   "heygen_voice_id",
   "heygen_avatar_name",
   "heygen_voice_name",
-  "openrouter_model",
   "heygen_enabled",
-  "openrouter_enabled",
-  "groq_enabled",
 ] as const;
 
 /** Flips a service on/off without touching the stored key. */
@@ -355,21 +270,6 @@ export async function saveAvatarSelection(input: {
     throw new Error("ذخیرهٔ انتخاب آواتار ناموفق بود.");
   }
   await recordVersion(`چهره: ${input.avatarName || input.avatarId || "بدون نام"}`, userId);
-  return { ok: true as const };
-}
-
-export async function saveOpenRouterModel(model: string, userId: string | null) {
-  const current = await settingsRow();
-  try {
-    await sql`
-      UPDATE app_settings
-      SET openrouter_model = ${model}, updated_at = now()
-      WHERE id = ${current.id}
-    `;
-  } catch {
-    throw new Error("ذخیرهٔ مدل ناموفق بود.");
-  }
-  await recordVersion(`مدل OpenRouter: ${model}`, userId);
   return { ok: true as const };
 }
 

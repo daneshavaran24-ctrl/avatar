@@ -105,9 +105,6 @@ export const CHROMA_KEY_GREEN_THRESHOLD = 40;
 // تنظیمات زمان‌بندی و تأخیر
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** تأخیر پیش از تلاش مجدد OpenRouter (میلی‌ثانیه) */
-export const OPENROUTER_RETRY_DELAY_MS = 700;
-
 /** تأخیر پیش از بستن LiveAvatar session (میلی‌ثانیه) */
 export const LIVEAVATAR_SESSION_CLOSE_DELAY_MS = 1000;
 
@@ -133,9 +130,6 @@ export const EMBEDDING_BATCH_SIZE = 16;
 // ─────────────────────────────────────────────────────────────────────────────
 // حداکثر تعداد تلاش‌ها
 // ─────────────────────────────────────────────────────────────────────────────
-
-/** تعداد تلاش‌های OpenRouter پیش از fallback */
-export const OPENROUTER_MAX_ATTEMPTS = 2;
 
 /** تعداد مدل‌های Deepgram برای امتحان */
 export const DEEPGRAM_MODEL_ATTEMPTS = 2;
@@ -191,9 +185,9 @@ export const ERROR_LIVEAVATAR_NOT_SELECTED = "LIVEAVATAR_AVATAR_NOT_SELECTED";
 /** Largest audio upload accepted for transcription (~10 MB). */
 export const MAX_AUDIO_UPLOAD_BYTES = 10 * 1024 * 1024;
 
-export type ChatProvider = "openai" | "openrouter" | "none";
-export type SttProvider = "openai" | "groq" | "none";
-export type TtsProvider = "elevenlabs" | "openai" | "browser";
+export type ChatProvider = "openai" | "none";
+export type SttProvider = "openai" | "none";
+export type TtsProvider = "openai" | "browser";
 export type AvatarProvider = "heygen" | "liveavatar";
 
 // ─────────────────────────────────────────────────────────────────────────────

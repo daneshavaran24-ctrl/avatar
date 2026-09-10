@@ -3,10 +3,7 @@ import { requireAdminSession } from "./admin.middleware";
 import {
   avatarSelectionSchema,
   connectionKeySchema,
-  elevenVoiceSchema,
   managedKeyNameSchema,
-  openRouterModelSchema,
-  persianVoicePreferenceSchema,
   saveKeySchema,
   settingsSchema,
   toggleServiceSchema,
@@ -17,7 +14,6 @@ import {
   listSettingsVersions,
   restoreSettingsVersion,
   saveAvatarSelection,
-  saveOpenRouterModel,
   testConnection,
   toggleService,
 } from "./connections.server";
@@ -126,13 +122,6 @@ export const selectAvatar = createServerFn({ method: "POST" })
     return saveAvatarSelection(data, context.userId);
   });
 
-export const setOpenRouterModel = createServerFn({ method: "POST" })
-  .middleware([requireAdminSession])
-  .inputValidator((data: unknown) => openRouterModelSchema.parse(data))
-  .handler(async ({ context, data }) => {
-    return saveOpenRouterModel(data, context.userId);
-  });
-
 export const setServiceEnabled = createServerFn({ method: "POST" })
   .middleware([requireAdminSession])
   .inputValidator((data: unknown) => toggleServiceSchema.parse(data))
@@ -217,35 +206,4 @@ export const removeProviderKey = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => managedKeyNameSchema.parse(data))
   .handler(async ({ data }) => {
     return deleteStoredKey(data);
-  });
-export const listElevenVoicesFn = createServerFn({ method: "GET" })
-  .middleware([requireAdminSession])
-  .handler(async () => {
-    const { listElevenVoices } = await import("./elevenlabs.server");
-    return listElevenVoices();
-  });
-
-export const diagnoseElevenLabsFn = createServerFn({ method: "POST" })
-  .middleware([requireAdminSession])
-  .handler(async () => {
-    const { diagnoseElevenLabs } = await import("./elevenlabs.server");
-    return diagnoseElevenLabs();
-  });
-
-
-export const selectElevenVoiceFn = createServerFn({ method: "POST" })
-  .middleware([requireAdminSession])
-  .inputValidator((data: unknown) => elevenVoiceSchema.parse(data))
-  .handler(async ({ data }) => {
-    const { saveElevenVoice } = await import("./elevenlabs.server");
-    return saveElevenVoice(data);
-  });
-
-/** Copies the best native Persian voice from the ElevenLabs library. */
-export const activatePersianVoiceFn = createServerFn({ method: "POST" })
-  .middleware([requireAdminSession])
-  .inputValidator((data: unknown) => persianVoicePreferenceSchema.parse(data))
-  .handler(async ({ data }) => {
-    const { activatePersianLibraryVoice } = await import("./elevenlabs.server");
-    return activatePersianLibraryVoice(data.prefer);
   });

@@ -38,28 +38,11 @@ export const avatarSelectionSchema = z.object({
   previewUrl: z.string().max(2000).default(""),
 });
 
-export const connectionKeySchema = z.enum([
-  "openai",
-  "heygen",
-  "openrouter",
-  "groq",
-  "elevenlabs",
-]);
+export const connectionKeySchema = z.enum(["openai", "heygen"]);
 
 export const toggleServiceSchema = z.object({
-  key: z.enum(["heygen", "openrouter", "groq", "elevenlabs"]),
+  key: z.enum(["heygen"]),
   enabled: z.boolean(),
-});
-
-export const openRouterModelSchema = z.string().min(1).max(120);
-
-export const elevenVoiceSchema = z.object({
-  voiceId: z.string().min(1).max(120),
-  voiceName: z.string().max(200).default(""),
-  model: z.string().min(1).max(80).default("eleven_multilingual_v2"),
-  stability: z.number().min(0).max(1).default(0.5),
-  similarity: z.number().min(0).max(1).default(0.75),
-  style: z.number().min(0).max(1).default(0.3),
 });
 
 export const managedKeyNameSchema = z.enum([
@@ -67,19 +50,13 @@ export const managedKeyNameSchema = z.enum([
   // Keys tab cannot save a key the key store is willing to hold.
   "OPENAI_API_KEY",
   "HEYGEN_API_KEY",
-  "OPENROUTER_API_KEY",
-  "GROQ_API_KEY",
-  "ELEVENLABS_API_KEY",
-  "HEYGEN_AVATAR_ID",
-  "HEYGEN_VOICE_ID",
+  "LIVEAVATAR_AVATAR_ID",
+  "LIVEAVATAR_CONTEXT_ID",
 ]);
 
 export const saveKeySchema = z.object({
   name: managedKeyNameSchema,
   value: z.string().trim().min(3).max(500),
-});
-export const persianVoicePreferenceSchema = z.object({
-  prefer: z.enum(["male", "female"]).default("male"),
 });
 
 export const createAdminSchema = z.object({

@@ -11,12 +11,11 @@ import {
 } from "./constants";
 
 /**
- * Persian speech synthesis. The browser's own `speechSynthesis` rarely ships a
- * Persian voice, so answers used to be read with a foreign accent; this path
- * returns natural Persian audio on every device. ElevenLabs is preferred when
- * configured, with OpenAI as the fallback. Audio is returned as base64 MP3 per
- * chunk so playback can start on the first sentence group instead of waiting
- * for the whole answer.
+ * Persian speech synthesis via OpenAI. The browser's own `speechSynthesis`
+ * rarely ships a Persian voice, so answers used to be read with a foreign
+ * accent; this path returns natural Persian audio on every device. Audio is
+ * returned as base64 MP3 per chunk so playback can start on the first sentence
+ * group instead of waiting for the whole answer.
  */
 export const TTS_MODEL = "gpt-4o-mini-tts";
 
@@ -92,17 +91,13 @@ function toBase64(bytes: ArrayBuffer): string {
 }
 
 /**
- * Synthesizes Persian speech with cascading TTS provider fallback.
- *
- * Priority:
- * 1. ElevenLabs Multilingual v2 (best Persian quality, no accent)
- * 2. OpenAI TTS (with Persian delivery instructions)
- * 3. Throws error if both fail
+ * Synthesizes Persian speech with OpenAI TTS (with Persian delivery
+ * instructions).
  *
  * @param text Text to synthesize (will be normalized for speech)
  * @param context Previous/next chunks for better prosody continuity
  * @returns Base64 MP3 audio and MIME type
- * @throws {Error} If all TTS providers fail
+ * @throws {Error} If synthesis fails
  */
 export async function synthesizePersian(
   text: string,
@@ -112,25 +107,6 @@ export async function synthesizePersian(
   // Written Persian is rewritten into speakable Persian first: digits become
   // words, markdown disappears and punctuation carries the prosody.
   const spoken = toSpeechText(text);
-  const previous = context.previous ? toSpeechText(context.previous) : undefined;
-  const next = context.next ? toSpeechText(context.next) : undefined;
-
-  // ElevenLabs speaks first: its multilingual v2 model delivers by far the
-  // most natural, accent-free Persian. The gateway voice is the fallback.
-  let elevenError: Error | null = null;
-  try {
-    const { synthesizeWithElevenLabs } = await import("./elevenlabs.server");
-    const eleven = await synthesizeWithElevenLabs(spoken, settings.speed, { previous, next });
-    if (eleven) return eleven;
-  } catch (error) {
-    elevenError = error instanceof Error ? error : new Error(String(error));
-    console.error("[TTS] ElevenLabs failed, falling back to OpenAI:", {
-      error: elevenError.message,
-      text: spoken.slice(0, 50),
-      speed: settings.speed,
-    });
-  }
-
   try {
     const config = await providerConfig();
     if (!config.openAiKey) {
@@ -182,7 +158,6 @@ export async function synthesizePersian(
     }
   }
 
-  // Both providers failed - throw the more specific error if available
-  throw elevenError ?? new Error(`${ERROR_TTS_FAILED}: سرویس صدا در دسترس نیست.`);
+  throw new Error(`${ERROR_TTS_FAILED}: سرویس صدا در دسترس نیست.`);
 }
 
