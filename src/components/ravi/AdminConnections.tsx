@@ -213,9 +213,9 @@ export function AdminConnections() {
               </p>
               <ul className="mt-2 space-y-1 text-xs" dir="ltr">
                 <li className="font-mono text-yellow-200">OPENAI_API_KEY <span className="text-yellow-100/50">(الزامی — موتور پاسخ)</span></li>
-                <li className="font-mono text-yellow-200">HEYGEN_API_KEY <span className="text-yellow-100/50">(آواتار زنده)</span></li>
-                <li className="font-mono text-yellow-200">HEYGEN_AVATAR_ID <span className="text-yellow-100/50">(شناسهٔ چهره)</span></li>
-                <li className="font-mono text-yellow-200">HEYGEN_VOICE_ID <span className="text-yellow-100/50">(شناسهٔ صدا)</span></li>
+                <li className="font-mono text-yellow-200">HEYGEN_API_KEY <span className="text-yellow-100/50">(کلید LiveAvatar)</span></li>
+                <li className="font-mono text-yellow-200">LIVEAVATAR_AVATAR_ID <span className="text-yellow-100/50">(شناسهٔ آواتار)</span></li>
+                <li className="font-mono text-yellow-200">LIVEAVATAR_CONTEXT_ID <span className="text-yellow-100/50">(شناسهٔ context)</span></li>
                 <li className="font-mono text-yellow-200">OPENROUTER_API_KEY <span className="text-yellow-100/50">(اختیاری)</span></li>
                 <li className="font-mono text-yellow-200">GROQ_API_KEY <span className="text-yellow-100/50">(اختیاری)</span></li>
                 <li className="font-mono text-yellow-200">ELEVENLABS_API_KEY <span className="text-yellow-100/50">(اختیاری)</span></li>

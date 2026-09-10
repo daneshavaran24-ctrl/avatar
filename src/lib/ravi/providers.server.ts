@@ -80,6 +80,8 @@ export async function providerConfig() {
     heygenKey: enabled.heygen ? heygenKey : null,
     heygenAvatarId: stored.HEYGEN_AVATAR_ID || process.env["HEYGEN_AVATAR_ID"] || null,
     heygenVoiceId: stored.HEYGEN_VOICE_ID || process.env["HEYGEN_VOICE_ID"] || null,
+    liveAvatarAvatarId: process.env["LIVEAVATAR_AVATAR_ID"] || null,
+    liveAvatarContextId: process.env["LIVEAVATAR_CONTEXT_ID"] || null,
   };
 }
 

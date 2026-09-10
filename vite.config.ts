@@ -41,11 +41,7 @@ export default defineConfig({
         host: "0.0.0.0",
       },
     },
-    routeRules: {
-      "/api/liveavatar/**": {
-        proxy: "https://api.liveavatar.com/**",
-      },
-    },
+    routeRules: {},
   },
 
   tanstackStart: {
@@ -67,32 +63,13 @@ export default defineConfig({
       strictPort: false,
     },
     optimizeDeps: {
-      // Both SDKs ship CommonJS deps; pre-bundling them keeps their base classes
-      // defined before subclasses evaluate.
-      include: ["@heygen/streaming-avatar", "@heygen/liveavatar-web-sdk"],
       esbuildOptions: { alias: { events: eventsShim, "node:events": eventsShim } },
     },
 
 
 
     build: {
-      rollupOptions: {
-        output: {
-          manualChunks(id: string) {
-            // The avatar SDKs and their shared CommonJS dependencies must stay in
-            // ONE chunk: split across chunks, a shared base class evaluated as
-            // `undefined` and the stage crashed with "Class extends value undefined".
-            if (
-              /node_modules\/(@heygen\/(liveavatar-web-sdk|streaming-avatar)|livekit-client|typed-emitter|webrtc-issue-detector|events|sdp-transform|ts-debounce|loglevel|rtcstats)\//.test(
-                id,
-              )
-            ) {
-              return "avatar-sdk";
-            }
-            return undefined;
-          },
-        },
-      },
+      rollupOptions: {},
     },
   },
 });

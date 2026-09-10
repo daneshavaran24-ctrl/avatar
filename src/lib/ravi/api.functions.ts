@@ -14,7 +14,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { askSchema, sessionIdSchema } from "./validators";
 import { runAnswerPipeline } from "./pipeline.server";
 import { startSession, endSession } from "./session.server";
-import { createHeygenSessionToken } from "./heygen.server";
+import { createEmbedUrl } from "./heygen.server";
 import { transcribeAudio } from "./providers.server";
 import { getOrCreateVisitorId, assertOwnSession } from "./visitor.server";
 import { clientIp } from "./auth.server";
@@ -81,7 +81,7 @@ export const requestAvatarSession = createServerFn({ method: "POST" }).handler(a
   const visitorId = getOrCreateVisitorId();
   await enforceLimit("avatar", { visitorId, ip: clientIp() });
   await enforceGlobalAvatarLimit();
-  return createHeygenSessionToken();
+  return createEmbedUrl();
 });
 
 export const transcribeSpeech = createServerFn({ method: "POST" })

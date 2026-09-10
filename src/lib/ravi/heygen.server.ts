@@ -1,21 +1,10 @@
-import { sql } from "@/lib/db/client.server";
-import type { JsonValue } from "@/lib/db/schema";
 import { providerConfig } from "./providers.server";
-
-export interface AvatarCredentials {
-  token: string;
-  avatarId: string | null;
-  voiceId: string | null;
-  avatarName: string | null;
-  voiceName: string | null;
-  previewUrl: string | null;
-}
 
 export type AvatarVendor = "heygen" | "liveavatar";
 
-export type AvatarSessionResult =
-  | ({ configured: true; vendor: AvatarVendor } & AvatarCredentials)
-  | { configured: false; reason: string; previewUrl: string | null; avatarName: string | null };
+export type EmbedResult =
+  | { configured: true; embedUrl: string }
+  | { configured: false; reason: string };
 
 export interface HeygenAvatarOption {
   avatarId: string;
@@ -37,30 +26,6 @@ export interface HeygenVoiceOption {
 const HEYGEN_BASE = "https://api.heygen.com";
 const LIVEAVATAR_BASE = "https://api.liveavatar.com";
 
-/** Keeps the last avatar-session outcome visible in the admin panel. */
-async function recordAvatarSessionStatus(ok: boolean, reason: string) {
-  try {
-    const [row] = await sql<{ id: string; connection_status: Record<string, JsonValue> }[]>`
-      SELECT id, connection_status FROM app_settings LIMIT 1
-    `;
-    if (!row) return;
-    const next: Record<string, JsonValue> = {
-      ...(row.connection_status ?? {}),
-      avatar_session: { ok, reason, checked_at: new Date().toISOString() },
-    };
-    await sql`
-      UPDATE app_settings SET connection_status = ${sql.json(next)} WHERE id = ${row.id}
-    `;
-  } catch {
-    /* status logging must never break the session */
-  }
-}
-
-/**
- * Keys minted at app.liveavatar.com/developers are LiveAvatar keys and are
- * rejected by api.heygen.com. We probe LiveAvatar first (cheap credits call)
- * and fall back to classic HeyGen.
- */
 const vendorCache = new Map<string, AvatarVendor>();
 
 export async function detectAvatarVendor(key: string): Promise<AvatarVendor> {
@@ -96,158 +61,44 @@ async function liveAvatarGet<T>(path: string, key: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-/** Panel selection wins over the environment defaults. */
-async function selectedAvatar(): Promise<{
-  avatarId: string | null;
-  voiceId: string | null;
-  avatarName: string | null;
-  voiceName: string | null;
-  previewUrl: string | null;
-}> {
+/**
+ * Mints a LiveAvatar embed URL via the v2/embeddings endpoint.
+ * The embed URL is loaded in an iframe — LiveAvatar handles ASR, LLM, TTS,
+ * and avatar rendering internally. No SDK, WebRTC, or chroma-key needed.
+ */
+export async function createEmbedUrl(): Promise<EmbedResult> {
   const config = await providerConfig();
-  const [data] = await sql<Record<string, string | null>[]>`
-    SELECT heygen_avatar_id, heygen_voice_id, heygen_avatar_name, heygen_voice_name,
-           heygen_avatar_preview
-    FROM app_settings
-    LIMIT 1
-  `;
+  const key = config.heygenKey;
+  if (!key) return { configured: false, reason: "HEYGEN_NOT_CONFIGURED" };
 
-  const row = data ?? {};
-  return {
-    avatarId: row["heygen_avatar_id"] || config.heygenAvatarId,
-    voiceId: row["heygen_voice_id"] || config.heygenVoiceId,
-    avatarName: row["heygen_avatar_name"] || null,
-    voiceName: row["heygen_voice_name"] || null,
-    previewUrl: row["heygen_avatar_preview"] || null,
-  };
-}
-
-const PERSIAN_LANGUAGE = /persian|farsi|iran|^fa([-_]|$)/i;
-
-let voiceCache: { at: number; voices: HeygenVoiceOption[] } | null = null;
-
-async function cachedVoices(): Promise<HeygenVoiceOption[]> {
-  if (voiceCache && Date.now() - voiceCache.at < 10 * 60_000) return voiceCache.voices;
-  const voices = await listHeygenVoices();
-  voiceCache = { at: Date.now(), voices };
-  return voices;
-}
-
-/**
- * Answers are always written in Persian, so a voice built for another language
- * reads them with a heavy foreign accent. If the stored selection is not a
- * Persian voice, a Persian one from the same account is used (and remembered)
- * instead — this is the single biggest factor in how natural the avatar sounds.
- */
-async function withPersianVoice<T extends { voiceId: string | null; voiceName: string | null }>(
-  selection: T,
-): Promise<T> {
-  try {
-    const voices = await cachedVoices();
-    if (voices.length === 0) return selection;
-    const current = voices.find((voice) => voice.voiceId === selection.voiceId);
-    if (current && PERSIAN_LANGUAGE.test(current.language ?? "")) return selection;
-
-    const persian = voices.filter(
-      (voice) => voice.interactive !== false && PERSIAN_LANGUAGE.test(voice.language ?? ""),
-    );
-    if (persian.length === 0) return selection;
-    const preferred =
-      persian.find((voice) => (voice.gender ?? "").toLowerCase() === (current?.gender ?? "").toLowerCase()) ??
-      persian[0]!;
-
-    await sql`
-      UPDATE app_settings
-      SET heygen_voice_id = ${preferred.voiceId}, heygen_voice_name = ${preferred.name}
-    `;
-
-    return { ...selection, voiceId: preferred.voiceId, voiceName: preferred.name };
-  } catch {
-    return selection;
-  }
-}
-
-
-/**
- * Mints a short-lived HeyGen streaming session token. The long-lived API key
- * never leaves the server. Returns a typed "not configured / unavailable"
- * result instead of throwing, so the UI falls back to the orb + browser voice.
- */
-export async function createHeygenSessionToken(): Promise<AvatarSessionResult> {
-  // The stored selection also feeds the still preview the stage shows while the
-  // live stream connects, so it is loaded even on the unconfigured paths.
-  const selection = await withPersianVoice(await selectedAvatar());
-  const fallback = (reason: string): AvatarSessionResult => ({
-    configured: false,
-    reason,
-    previewUrl: selection.previewUrl,
-    avatarName: selection.avatarName,
-  });
-
-  const { heygenKey } = await providerConfig();
-  if (!heygenKey) {
-    await recordAvatarSessionStatus(false, "HEYGEN_NOT_CONFIGURED");
-    return fallback("HEYGEN_NOT_CONFIGURED");
-  }
+  const avatarId = config.liveAvatarAvatarId;
+  const contextId = config.liveAvatarContextId;
+  if (!avatarId) return { configured: false, reason: "LIVEAVATAR_AVATAR_ID_MISSING" };
 
   try {
-    const vendor = await detectAvatarVendor(heygenKey);
-    if (vendor === "liveavatar") {
-      if (!selection.avatarId) {
-        await recordAvatarSessionStatus(false, "LIVEAVATAR_AVATAR_NOT_SELECTED");
-        return fallback("LIVEAVATAR_AVATAR_NOT_SELECTED");
-      }
-      const response = await fetch(`${LIVEAVATAR_BASE}/v1/sessions/token`, {
-        method: "POST",
-        headers: { "X-API-KEY": heygenKey, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: "FULL",
-          avatar_id: selection.avatarId,
-          // LiveAvatar rejects language "fa" ("Language not supported"), and the
-          // avatar only repeats text we already generate in Persian, so no
-          // language is requested here.
-          ...(selection.voiceId ? { avatar_persona: { voice_id: selection.voiceId } } : {}),
-        }),
-      });
-      if (!response.ok) {
-        const detail = (await response.text()).slice(0, 200);
-        await recordAvatarSessionStatus(false, `LIVEAVATAR_TOKEN_FAILED_${response.status}: ${detail}`);
-        return fallback(`LIVEAVATAR_TOKEN_FAILED_${response.status}`);
-      }
-      const json = (await response.json()) as { data?: { session_token?: string } };
-      const sessionToken = json.data?.session_token;
-      if (!sessionToken) {
-        await recordAvatarSessionStatus(false, "LIVEAVATAR_TOKEN_EMPTY");
-        return fallback("LIVEAVATAR_TOKEN_EMPTY");
-      }
-      await recordAvatarSessionStatus(true, "LIVEAVATAR_OK");
-      return { configured: true, vendor: "liveavatar", token: sessionToken, ...selection };
-    }
-
-    const response = await fetch(`${HEYGEN_BASE}/v1/streaming.create_token`, {
+    const response = await fetch(`${LIVEAVATAR_BASE}/v2/embeddings`, {
       method: "POST",
-      headers: { "x-api-key": heygenKey, "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      headers: { "X-API-KEY": key, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        avatar_id: avatarId,
+        ...(contextId ? { context_id: contextId } : {}),
+        is_sandbox: !contextId,
+      }),
     });
 
     if (!response.ok) {
       const detail = (await response.text()).slice(0, 200);
-      await recordAvatarSessionStatus(false, `HEYGEN_TOKEN_FAILED_${response.status}: ${detail}`);
-      return fallback(`HEYGEN_TOKEN_FAILED_${response.status}`);
+      console.error("[Embed] LiveAvatar embed failed:", response.status, detail);
+      return { configured: false, reason: `LIVEAVATAR_EMBED_FAILED_${response.status}` };
     }
 
-    const json = (await response.json()) as { data?: { token?: string } };
-    const token = json.data?.token;
-    if (!token) {
-      await recordAvatarSessionStatus(false, "HEYGEN_TOKEN_EMPTY");
-      return fallback("HEYGEN_TOKEN_EMPTY");
-    }
+    const json = (await response.json()) as { data?: { url?: string } };
+    const embedUrl = json.data?.url;
+    if (!embedUrl) return { configured: false, reason: "LIVEAVATAR_EMBED_URL_EMPTY" };
 
-    await recordAvatarSessionStatus(true, "HEYGEN_OK");
-    return { configured: true, vendor: "heygen", token, ...selection };
+    return { configured: true, embedUrl };
   } catch {
-    await recordAvatarSessionStatus(false, "HEYGEN_UNREACHABLE");
-    return fallback("HEYGEN_UNREACHABLE");
+    return { configured: false, reason: "LIVEAVATAR_UNREACHABLE" };
   }
 }
 
@@ -273,7 +124,6 @@ interface LiveAvatarVoiceRow {
   gender?: string;
 }
 
-/** Interactive (streaming) avatars available on the operator's HeyGen account. */
 export async function listHeygenAvatars(): Promise<HeygenAvatarOption[]> {
   const { heygenKey } = await providerConfig();
   if (!heygenKey) throw new Error("HEYGEN_NOT_CONFIGURED");
