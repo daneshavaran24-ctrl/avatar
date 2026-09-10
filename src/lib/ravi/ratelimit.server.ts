@@ -52,13 +52,26 @@ function windowStart(windowSeconds: number): Date {
 }
 
 async function hit(bucketKey: string, limit: Limit): Promise<void> {
-  const [row] = await sql<{ count: number }[]>`
-    INSERT INTO rate_limit_counters (bucket_key, window_start, count)
-    VALUES (${bucketKey}, ${windowStart(limit.windowSeconds)}, 1)
-    ON CONFLICT (bucket_key, window_start)
-      DO UPDATE SET count = rate_limit_counters.count + 1
-    RETURNING count
-  `;
+  let row: { count: number } | undefined;
+  try {
+    [row] = await sql<{ count: number }[]>`
+      INSERT INTO rate_limit_counters (bucket_key, window_start, count)
+      VALUES (${bucketKey}, ${windowStart(limit.windowSeconds)}, 1)
+      ON CONFLICT (bucket_key, window_start)
+        DO UPDATE SET count = rate_limit_counters.count + 1
+      RETURNING count
+    `;
+  } catch (error) {
+    // Counters live in Postgres, so an unreachable database leaves only two
+    // options: refuse every public request, or serve them unmetered. Refusing
+    // takes the whole site down — including the avatar, which needs no database
+    // of its own — so the request is allowed and the outage logged instead.
+    console.error(
+      "[RateLimit] counter unavailable, allowing request unmetered:",
+      error instanceof Error ? error.message : String(error),
+    );
+    return;
+  }
 
   if (row && row.count > limit.max) throw new RateLimitError();
 }

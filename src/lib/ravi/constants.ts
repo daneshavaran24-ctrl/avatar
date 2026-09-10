@@ -185,6 +185,14 @@ export const ERROR_LIVEAVATAR_NOT_SELECTED = "LIVEAVATAR_AVATAR_NOT_SELECTED";
 /** Largest audio upload accepted for transcription (~10 MB). */
 export const MAX_AUDIO_UPLOAD_BYTES = 10 * 1024 * 1024;
 
+/**
+ * شناسهٔ آواتار پیش‌فرض. embed بدون avatar_id ساخته نمی‌شود، و چون دیتابیس
+ * ممکن است در دسترس نباشد، این مقدار تضمین می‌کند صفحهٔ اصلی فقط با
+ * HEYGEN_API_KEY کار کند. کلید ذخیره‌شده در پنل یا LIVEAVATAR_AVATAR_ID
+ * بر این مقدار اولویت دارند.
+ */
+export const DEFAULT_LIVEAVATAR_AVATAR_ID = "6879c60d-3633-459e-ba76-9b0c585e3f1b";
+
 export type ChatProvider = "openai" | "none";
 export type SttProvider = "openai" | "none";
 export type TtsProvider = "openai" | "browser";

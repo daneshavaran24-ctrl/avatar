@@ -100,8 +100,6 @@ function RaviStage() {
 function reasonToMessage(reason: string): string {
   if (/NOT_CONFIGURED/.test(reason))
     return "کلید سرویس آواتار تنظیم نشده است. از پنل مدیریت کلید را وارد کنید.";
-  if (/AVATAR_ID_MISSING/.test(reason))
-    return "شناسهٔ آواتار (LIVEAVATAR_AVATAR_ID) تنظیم نشده است. متغیر محیطی را در پنل لیارا تنظیم کنید.";
   if (/UNREACHABLE/.test(reason))
     return "اتصال به سرویس LiveAvatar برقرار نشد. لطفاً دوباره تلاش کنید.";
   if (/EMBED_FAILED/.test(reason))

@@ -73,7 +73,6 @@ export async function createEmbedUrl(): Promise<EmbedResult> {
 
   const avatarId = config.liveAvatarAvatarId;
   const contextId = config.liveAvatarContextId;
-  if (!avatarId) return { configured: false, reason: "LIVEAVATAR_AVATAR_ID_MISSING" };
 
   try {
     const response = await fetch(`${LIVEAVATAR_BASE}/v2/embeddings`, {

@@ -95,7 +95,7 @@ const SERVICES: {
     key: "heygen",
     title: "LiveAvatar (آواتار زنده)",
     description:
-      "کلید را از app.liveavatar.com/developers بگیرید. شناسهٔ آواتار الزامی است؛ بدون شناسهٔ context حالت sandbox فعال می‌شود.",
+      "کلید را از app.liveavatar.com/developers بگیرید. یک شناسهٔ آواتار پیش‌فرض از قبل فعال است و فقط برای تغییر آواتار لازم است چیزی وارد کنید؛ بدون شناسهٔ context حالت sandbox فعال می‌شود.",
     secrets: ["HEYGEN_API_KEY", "LIVEAVATAR_AVATAR_ID", "LIVEAVATAR_CONTEXT_ID"],
     docs: "https://app.liveavatar.com/developers",
   },
@@ -187,7 +187,7 @@ export function AdminConnections() {
               <ul className="mt-2 space-y-1 text-xs" dir="ltr">
                 <li className="font-mono text-yellow-200">OPENAI_API_KEY <span className="text-yellow-100/50">(الزامی — موتور پاسخ)</span></li>
                 <li className="font-mono text-yellow-200">HEYGEN_API_KEY <span className="text-yellow-100/50">(الزامی — کلید LiveAvatar)</span></li>
-                <li className="font-mono text-yellow-200">LIVEAVATAR_AVATAR_ID <span className="text-yellow-100/50">(الزامی — شناسهٔ آواتار)</span></li>
+                <li className="font-mono text-yellow-200">LIVEAVATAR_AVATAR_ID <span className="text-yellow-100/50">(اختیاری — مقدار پیش‌فرض از قبل فعال است)</span></li>
                 <li className="font-mono text-yellow-200">LIVEAVATAR_CONTEXT_ID <span className="text-yellow-100/50">(اختیاری — بدون آن حالت sandbox)</span></li>
               </ul>
               <p className="mt-2 text-xs text-yellow-100/70">
