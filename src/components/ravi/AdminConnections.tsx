@@ -76,11 +76,19 @@ function formatDate(value: string): string {
   }
 }
 
+interface ServiceField {
+  name: ManagedKeyName;
+  label: string;
+  /** Only a real credential is masked; identifiers are plain text. */
+  secret: boolean;
+  hint: string;
+}
+
 const SERVICES: {
   key: ConnectionKey;
   title: string;
   description: string;
-  secrets: ManagedKeyName[];
+  fields: ServiceField[];
   docs: string | null;
 }[] = [
   {
@@ -88,15 +96,41 @@ const SERVICES: {
     title: "OpenAI (کلید اصلی و الزامی)",
     description:
       "موتور تولید پاسخ، بردارسازی اسناد، تبدیل گفتار به متن و تولید صدای فارسی. بدون این کلید سامانه پاسخ نمی‌دهد.",
-    secrets: ["OPENAI_API_KEY"],
+    fields: [
+      {
+        name: "OPENAI_API_KEY",
+        label: "کلید API",
+        secret: true,
+        hint: "الزامی",
+      },
+    ],
     docs: "https://platform.openai.com/api-keys",
   },
   {
     key: "heygen",
     title: "LiveAvatar (آواتار زنده)",
     description:
-      "کلید را از app.liveavatar.com/developers بگیرید. یک شناسهٔ آواتار پیش‌فرض از قبل فعال است و فقط برای تغییر آواتار لازم است چیزی وارد کنید؛ بدون شناسهٔ context حالت sandbox فعال می‌شود.",
-    secrets: ["HEYGEN_API_KEY", "LIVEAVATAR_AVATAR_ID", "LIVEAVATAR_CONTEXT_ID"],
+      "این سرویس فقط یک کلید API دارد؛ دو مورد بعدی کلید نیستند، شناسه‌اند و هر دو اختیاری‌اند.",
+    fields: [
+      {
+        name: "HEYGEN_API_KEY",
+        label: "کلید API لایواواتار",
+        secret: true,
+        hint: "الزامی — از app.liveavatar.com/developers",
+      },
+      {
+        name: "LIVEAVATAR_AVATAR_ID",
+        label: "شناسهٔ آواتار",
+        secret: false,
+        hint: "اختیاری — یک آواتار پیش‌فرض از قبل فعال است؛ فقط برای عوض کردن چهره پر کنید",
+      },
+      {
+        name: "LIVEAVATAR_CONTEXT_ID",
+        label: "شناسهٔ context",
+        secret: false,
+        hint: "اختیاری — شخصیت و دانش آواتار؛ بدون آن حالت sandbox فعال می‌شود",
+      },
+    ],
     docs: "https://app.liveavatar.com/developers",
   },
 ];
@@ -231,7 +265,7 @@ export function AdminConnections() {
             const status = data?.connections.find((item) => item.key === service.key);
             const result = results[service.key];
             const lastCheck = (status?.lastCheck ?? null) as LastCheck | null;
-            const primaryKey = data?.keys?.find((k) => k.name === service.secrets[0]);
+            const primaryKey = data?.keys?.find((k) => k.name === service.fields[0]?.name);
             return (
               <div key={service.key} className="rounded-2xl bg-surface-2 p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -272,11 +306,11 @@ export function AdminConnections() {
                   </div>
                 )}
 
-                {service.secrets.map((secret) => (
+                {service.fields.map((field) => (
                   <KeyField
-                    key={secret}
-                    name={secret}
-                    status={data?.keys?.find((item) => item.name === secret)}
+                    key={field.name}
+                    field={field}
+                    status={data?.keys?.find((item) => item.name === field.name)}
                   />
                 ))}
 
@@ -355,7 +389,8 @@ export function AdminConnections() {
   );
 }
 
-function KeyField({ name, status }: { name: ManagedKeyName; status: KeyStatus | undefined }) {
+function KeyField({ field, status }: { field: ServiceField; status: KeyStatus | undefined }) {
+  const { name, label, secret, hint } = field;
   const queryClient = useQueryClient();
   const saveFn = useServerFn(saveProviderKey);
   const removeFn = useServerFn(removeProviderKey);
@@ -382,30 +417,33 @@ function KeyField({ name, status }: { name: ManagedKeyName; status: KeyStatus | 
 
   return (
     <div className="mt-3 flex flex-col gap-2">
-      <Label htmlFor={`key-${name}`} className="text-[11px] text-muted-foreground" dir="ltr">
-        {name}
+      <Label htmlFor={`key-${name}`} className="flex flex-wrap items-baseline gap-x-2 text-[11px]">
+        <span className="font-medium text-foreground">{label}</span>
+        <span dir="ltr" className="font-mono text-muted-foreground/70">{name}</span>
       </Label>
       <div className="flex items-center gap-2">
         <Input
           id={`key-${name}`}
           dir="ltr"
-          type={visible ? "text" : "password"}
+          type={secret && !visible ? "password" : "text"}
           autoComplete="off"
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          placeholder={status?.masked ?? "کلید را وارد کنید…"}
+          placeholder={status?.masked ?? (secret ? "کلید را وارد کنید…" : "شناسه را وارد کنید…")}
           className="h-9 bg-surface-2 text-left"
         />
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="size-9 shrink-0"
-          aria-label={visible ? "پنهان‌سازی کلید" : "نمایش کلید"}
-          onClick={() => setVisible((current) => !current)}
-        >
-          {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-        </Button>
+        {secret && (
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="size-9 shrink-0"
+            aria-label={visible ? "پنهان‌سازی کلید" : "نمایش کلید"}
+            onClick={() => setVisible((current) => !current)}
+          >
+            {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          </Button>
+        )}
         <Button
           type="button"
           size="icon"
@@ -441,12 +479,12 @@ function KeyField({ name, status }: { name: ManagedKeyName; status: KeyStatus | 
       ) : (
         <p className="text-[11px] text-muted-foreground">
           {save.isSuccess
-            ? "کلید با موفقیت ذخیره شد."
+            ? "ذخیره شد."
             : status?.stored
-              ? `کلید ذخیره‌شده: ${status.masked}`
+              ? `ذخیره‌شده: ${status.masked}`
               : status?.fromEnv
-                ? "از مخزن امن سرور خوانده می‌شود."
-                : "هنوز کلیدی ثبت نشده است."}
+                ? "از متغیر محیطی سرور خوانده می‌شود."
+                : hint}
         </p>
       )}
     </div>
