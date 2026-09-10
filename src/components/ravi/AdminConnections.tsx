@@ -205,6 +205,26 @@ export function AdminConnections() {
               <li>هیچ کلیدی در دیتابیس ذخیره نشده است.</li>
             )}
           </ul>
+          {!db.dbConnected && (
+            <div className="mt-3 rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-3">
+              <p className="font-medium text-yellow-200">راه‌حل جایگزین: متغیرهای محیطی</p>
+              <p className="mt-1 text-xs text-yellow-100/70">
+                تا زمانی که دیتابیس در دسترس نیست، می‌توانید کلیدهای سرویس‌ها را مستقیماً به‌عنوان متغیر محیطی در پنل لیارا (بخش «متغیرهای محیطی» اپلیکیشن) تنظیم کنید. سرویس‌ها بدون دیتابیس هم با این متغیرها کار می‌کنند:
+              </p>
+              <ul className="mt-2 space-y-1 text-xs" dir="ltr">
+                <li className="font-mono text-yellow-200">OPENAI_API_KEY <span className="text-yellow-100/50">(الزامی — موتور پاسخ)</span></li>
+                <li className="font-mono text-yellow-200">HEYGEN_API_KEY <span className="text-yellow-100/50">(آواتار زنده)</span></li>
+                <li className="font-mono text-yellow-200">HEYGEN_AVATAR_ID <span className="text-yellow-100/50">(شناسهٔ چهره)</span></li>
+                <li className="font-mono text-yellow-200">HEYGEN_VOICE_ID <span className="text-yellow-100/50">(شناسهٔ صدا)</span></li>
+                <li className="font-mono text-yellow-200">OPENROUTER_API_KEY <span className="text-yellow-100/50">(اختیاری)</span></li>
+                <li className="font-mono text-yellow-200">GROQ_API_KEY <span className="text-yellow-100/50">(اختیاری)</span></li>
+                <li className="font-mono text-yellow-200">ELEVENLABS_API_KEY <span className="text-yellow-100/50">(اختیاری)</span></li>
+              </ul>
+              <p className="mt-2 text-xs text-yellow-100/70">
+                پس از تنظیم متغیرها، اپ را ری‌استارت کنید. وضعیت هر کلید در کارت‌های زیر نشان داده می‌شود.
+              </p>
+            </div>
+          )}
         </div>
       )}
       {accessDenied && (
@@ -257,7 +277,11 @@ export function AdminConnections() {
                         : "bg-destructive/15 text-destructive-foreground"
                     }`}
                   >
-                    {status?.configured ? "ثبت‌شده" : "ثبت‌نشده"}
+                    {status?.configured
+                      ? data?.keys?.find((k) => k.name === service.secret)?.fromEnv && !data?.keys?.find((k) => k.name === service.secret)?.stored
+                        ? "از متغیر محیطی"
+                        : "ثبت‌شده"
+                      : "ثبت‌نشده"}
                   </span>
                 </div>
 

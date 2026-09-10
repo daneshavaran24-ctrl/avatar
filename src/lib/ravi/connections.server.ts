@@ -75,8 +75,11 @@ export async function connectionOverview() {
   const config = await providerConfig();
   const keys = await storedKeyStatus();
   const eleven = await elevenSettings();
-  const data = await settingsRow();
-  const checks = readChecks(data);
+
+  let data: SettingsRow | null = null;
+  try { data = await settingsRow(); } catch { /* DB unreachable — use env var defaults */ }
+
+  const checks = data ? readChecks(data) : {} as Record<string, CheckRecord>;
   const avatarVendor = config.heygenKey ? await detectAvatarVendor(config.heygenKey) : null;
 
   const connections: ConnectionStatus[] = [
@@ -126,16 +129,17 @@ export async function connectionOverview() {
     activeStt: config.groqKey ? ("groq" as const) : ("openai" as const),
     avatarActive: Boolean(config.heygenKey),
     avatarVendor,
+    dbAvailable: data !== null,
     avatarSession: (checks["avatar_session"] ?? null) as
       | { ok?: boolean; reason?: string; checked_at?: string }
       | null,
     avatar: {
-      avatarId: data.heygen_avatar_id || config.heygenAvatarId || "",
-      voiceId: data.heygen_voice_id || config.heygenVoiceId || "",
-      avatarName: data.heygen_avatar_name || "",
-      voiceName: data.heygen_voice_name || "",
+      avatarId: (data?.heygen_avatar_id || config.heygenAvatarId || ""),
+      voiceId: (data?.heygen_voice_id || config.heygenVoiceId || ""),
+      avatarName: data?.heygen_avatar_name || "",
+      voiceName: data?.heygen_voice_name || "",
     },
-    openRouterModel: data.openrouter_model || config.openRouterModel,
+    openRouterModel: (data?.openrouter_model || config.openRouterModel),
     elevenlabs: eleven,
   };
 }
