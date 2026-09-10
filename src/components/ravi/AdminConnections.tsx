@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -7,7 +7,6 @@ import {
   EyeOff,
   History,
   Loader2,
-  Play,
   RefreshCw,
   RotateCcw,
   Save,
@@ -23,20 +22,14 @@ import {
   checkConnection,
   diagnoseDatabaseHealth,
   getConnections,
-  listAvatarLooks,
   listSettingsHistory,
   removeProviderKey,
   restoreSettingsHistory,
   saveProviderKey,
-  selectAvatar,
   setServiceEnabled,
 } from "@/lib/ravi/admin.functions";
 
-type ManagedKeyName =
-  | "OPENAI_API_KEY"
-  | "HEYGEN_API_KEY"
-  | "LIVEAVATAR_AVATAR_ID"
-  | "LIVEAVATAR_CONTEXT_ID";
+type ManagedKeyName = "OPENAI_API_KEY" | "HEYGEN_API_KEY";
 
 interface KeyStatus {
   name: string;
@@ -110,25 +103,13 @@ const SERVICES: {
     key: "heygen",
     title: "LiveAvatar (آواتار زنده)",
     description:
-      "این سرویس فقط یک کلید API دارد؛ دو مورد بعدی کلید نیستند، شناسه‌اند و هر دو اختیاری‌اند.",
+      "آواتار زندهٔ صفحهٔ اصلی. فقط همین یک کلید لازم است؛ چهرهٔ آواتار از قبل تنظیم شده است.",
     fields: [
       {
         name: "HEYGEN_API_KEY",
         label: "کلید API لایواواتار",
         secret: true,
         hint: "الزامی — از app.liveavatar.com/developers",
-      },
-      {
-        name: "LIVEAVATAR_AVATAR_ID",
-        label: "شناسهٔ آواتار",
-        secret: false,
-        hint: "اختیاری — یک آواتار پیش‌فرض از قبل فعال است؛ فقط برای عوض کردن چهره پر کنید",
-      },
-      {
-        name: "LIVEAVATAR_CONTEXT_ID",
-        label: "شناسهٔ context",
-        secret: false,
-        hint: "اختیاری — شخصیت و دانش آواتار؛ بدون آن حالت sandbox فعال می‌شود",
       },
     ],
     docs: "https://app.liveavatar.com/developers",
@@ -221,8 +202,6 @@ export function AdminConnections() {
               <ul className="mt-2 space-y-1 text-xs" dir="ltr">
                 <li className="font-mono text-yellow-200">OPENAI_API_KEY <span className="text-yellow-100/50">(الزامی — موتور پاسخ)</span></li>
                 <li className="font-mono text-yellow-200">HEYGEN_API_KEY <span className="text-yellow-100/50">(الزامی — کلید LiveAvatar)</span></li>
-                <li className="font-mono text-yellow-200">LIVEAVATAR_AVATAR_ID <span className="text-yellow-100/50">(اختیاری — مقدار پیش‌فرض از قبل فعال است)</span></li>
-                <li className="font-mono text-yellow-200">LIVEAVATAR_CONTEXT_ID <span className="text-yellow-100/50">(اختیاری — بدون آن حالت sandbox)</span></li>
               </ul>
               <p className="mt-2 text-xs text-yellow-100/70">
                 پس از تنظیم متغیرها، اپ را ری‌استارت کنید. وضعیت هر کلید در کارت‌های زیر نشان داده می‌شود.
@@ -378,12 +357,6 @@ export function AdminConnections() {
         )}
       </section>
 
-      <AvatarGallery
-        heygenReady={Boolean(data?.avatarActive)}
-        current={data?.avatar}
-        vendor={data?.avatarVendor ?? null}
-      />
-
       <SettingsHistory />
     </div>
   );
@@ -488,335 +461,6 @@ function KeyField({ field, status }: { field: ServiceField; status: KeyStatus | 
         </p>
       )}
     </div>
-  );
-}
-
-function AvatarGallery({
-  heygenReady,
-  current,
-  vendor,
-}: {
-  heygenReady: boolean;
-  vendor: "heygen" | "liveavatar" | null;
-  current:
-    | { avatarId: string; voiceId: string; avatarName: string; voiceName: string }
-    | undefined;
-}) {
-  const queryClient = useQueryClient();
-  const looksFn = useServerFn(listAvatarLooks);
-  const selectFn = useServerFn(selectAvatar);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  const looks = useQuery({
-    queryKey: ["admin", "avatar-looks"],
-    queryFn: () => looksFn(),
-    enabled: heygenReady,
-  });
-
-  const [avatarId, setAvatarId] = useState(current?.avatarId ?? "");
-  const [voiceId, setVoiceId] = useState(current?.voiceId ?? "");
-  const [query, setQuery] = useState("");
-  const [gender, setGender] = useState("all");
-  const [voiceQuery, setVoiceQuery] = useState("");
-  const [voiceLanguage, setVoiceLanguage] = useState("all");
-  const [voiceGender, setVoiceGender] = useState("all");
-  const [interactiveOnly, setInteractiveOnly] = useState(true);
-
-  useEffect(() => {
-    setAvatarId(current?.avatarId ?? "");
-    setVoiceId(current?.voiceId ?? "");
-  }, [current?.avatarId, current?.voiceId]);
-
-  const save = useMutation({
-    mutationFn: (input: { avatarName: string; voiceName: string }) =>
-      selectFn({
-        data: {
-          avatarId,
-          voiceId,
-          ...input,
-          previewUrl:
-            allAvatars.find((avatar) => avatar.avatarId === avatarId)?.previewUrl ?? "",
-        },
-      }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["admin", "connections"] });
-      void queryClient.invalidateQueries({ queryKey: ["admin", "settings-history"] });
-    },
-  });
-
-  if (!heygenReady) {
-    return (
-      <section className="rounded-3xl glass-panel p-5">
-        <h2 className="text-base font-semibold">گالری چهره‌های LiveAvatar</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          پس از ثبت کلید LiveAvatar و فعال بودن این سرویس، فهرست چهره‌های حساب شما همین‌جا
-          نمایش داده می‌شود تا شناسهٔ آواتار را پیدا کرده و در فیلد LIVEAVATAR_AVATAR_ID بگذارید.
-        </p>
-      </section>
-    );
-  }
-
-  const allAvatars = looks.data?.avatars ?? [];
-  const allVoices = looks.data?.voices ?? [];
-
-  const avatars = allAvatars.filter((avatar) => {
-    const matchesQuery = query ? avatar.name.toLowerCase().includes(query.toLowerCase()) : true;
-    const matchesGender =
-      gender === "all" || (avatar.gender ?? "").toLowerCase() === gender.toLowerCase();
-    return matchesQuery && matchesGender;
-  });
-
-  const languages = Array.from(
-    new Set(allVoices.map((voice) => voice.language).filter(Boolean) as string[]),
-  ).sort();
-
-  const voices = allVoices.filter((voice) => {
-    const matchesQuery = voiceQuery
-      ? voice.name.toLowerCase().includes(voiceQuery.toLowerCase())
-      : true;
-    const matchesLanguage = voiceLanguage === "all" || voice.language === voiceLanguage;
-    const matchesGender =
-      voiceGender === "all" || (voice.gender ?? "").toLowerCase() === voiceGender.toLowerCase();
-    const matchesInteractive = !interactiveOnly || voice.interactive;
-    return matchesQuery && matchesLanguage && matchesGender && matchesInteractive;
-  });
-
-  const selectedAvatarName =
-    allAvatars.find((avatar) => avatar.avatarId === avatarId)?.name || current?.avatarName || "";
-  const selectedVoiceName =
-    allVoices.find((voice) => voice.voiceId === voiceId)?.name || current?.voiceName || "";
-  const activeAvatar = allAvatars.find((avatar) => avatar.avatarId === current?.avatarId);
-  const portraitSelection = /portrait|close[ -]?up|پرتره/i.test(current?.avatarName ?? "");
-
-  function playPreview(url: string) {
-    audioRef.current?.pause();
-    const audio = new Audio(url);
-    audioRef.current = audio;
-    void audio.play().catch(() => undefined);
-  }
-
-  return (
-    <section className="rounded-3xl glass-panel p-5">
-      <div className="mb-5 grid gap-4 rounded-2xl border border-primary/30 bg-primary/10 p-4 sm:grid-cols-[7rem_1fr]">
-        <div className="aspect-3/4 overflow-hidden rounded-lg bg-background/50">
-          {activeAvatar?.previewUrl ? (
-            <img
-              src={activeAvatar.previewUrl}
-              alt={`پیش‌نمایش انتخاب فعال ${current?.avatarName || current?.avatarId}`}
-              className="h-full w-full object-contain"
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center px-2 text-center text-xs text-muted-foreground">
-              پیش‌نمایش در دسترس نیست
-            </div>
-          )}
-        </div>
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="font-semibold">انتخاب فعال روی استیج</h2>
-            <span className="rounded-full bg-primary/15 px-2 py-1 text-[11px] text-primary">
-              {vendor === "liveavatar" ? "LiveAvatar" : vendor === "heygen" ? "HeyGen" : "نامشخص"}
-            </span>
-          </div>
-          <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-            <div><dt className="text-muted-foreground">چهره</dt><dd className="mt-1 font-medium">{current?.avatarName || "بدون نام"}</dd></div>
-            <div><dt className="text-muted-foreground">صدا</dt><dd className="mt-1 font-medium">{current?.voiceName || "صدای پیش‌فرض چهره"}</dd></div>
-            <div className="min-w-0"><dt className="text-muted-foreground">شناسهٔ چهره</dt><dd dir="ltr" className="mt-1 break-all font-mono">{current?.avatarId || "—"}</dd></div>
-            <div className="min-w-0"><dt className="text-muted-foreground">شناسهٔ صدا</dt><dd dir="ltr" className="mt-1 break-all font-mono">{current?.voiceId || "default"}</dd></div>
-          </dl>
-          {portraitSelection && (
-            <p className="mt-3 rounded-lg bg-destructive/15 px-3 py-2 text-xs text-destructive-foreground">
-              این Look از نوع پرتره است و تصویر منبع بدن کامل ندارد. برای نمای واقعاً تمام‌قد، یک Look تمام‌قد انتخاب کنید.
-            </p>
-          )}
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold">گالری چهره‌های LiveAvatar</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            چهرهٔ فعلی: {current?.avatarName || current?.avatarId || "انتخاب نشده"}
-            {current?.voiceName ? ` — صدا: ${current.voiceName}` : ""}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="جستجوی نام چهره…"
-            className="w-56 bg-surface-2"
-          />
-          <select
-            aria-label="فیلتر جنسیت چهره"
-            value={gender}
-            onChange={(event) => setGender(event.target.value)}
-            className="h-10 rounded-md border border-border bg-surface-2 px-3 text-sm"
-          >
-            <option value="all">همهٔ جنسیت‌ها</option>
-            <option value="female">زن</option>
-            <option value="male">مرد</option>
-          </select>
-        </div>
-      </div>
-
-      {looks.isLoading && (
-        <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" />
-          در حال دریافت فهرست چهره‌ها…
-        </p>
-      )}
-      {looks.isError && (
-        <p className="mt-4 text-sm text-destructive-foreground">
-          دریافت فهرست چهره‌ها ناموفق بود. اعتبار کلید LiveAvatar را بررسی کنید.
-        </p>
-      )}
-
-      <div className="mt-4 grid max-h-96 gap-3 overflow-y-auto sm:grid-cols-3 lg:grid-cols-4">
-        {avatars.map((avatar) => (
-          <button
-            key={avatar.avatarId}
-            type="button"
-            onClick={() => setAvatarId(avatar.avatarId)}
-            className={`overflow-hidden rounded-2xl border text-right transition ${
-              avatarId === avatar.avatarId
-                ? "border-primary ring-2 ring-primary/40"
-                : "border-border hover:border-primary/50"
-            }`}
-          >
-            <div className="aspect-3/4 w-full bg-surface-2">
-              {avatar.previewUrl ? (
-                <img
-                  src={avatar.previewUrl}
-                  alt={`پیش‌نمایش چهرهٔ ${avatar.name}`}
-                  loading="lazy"
-                  className="h-full w-full object-contain"
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                  بدون پیش‌نمایش
-                </div>
-              )}
-            </div>
-            <p className="truncate px-3 py-2 text-xs">{avatar.name}</p>
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-5 rounded-2xl bg-surface-2 p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <Label className="text-sm">صدای گوینده</Label>
-          <Input
-            value={voiceQuery}
-            onChange={(event) => setVoiceQuery(event.target.value)}
-            placeholder="جستجوی نام صدا…"
-            className="h-9 w-48 bg-background/40"
-          />
-          <select
-            aria-label="فیلتر زبان صدا"
-            value={voiceLanguage}
-            onChange={(event) => setVoiceLanguage(event.target.value)}
-            className="h-9 rounded-md border border-border bg-background/40 px-3 text-sm"
-          >
-            <option value="all">همهٔ زبان‌ها</option>
-            {languages.map((language) => (
-              <option key={language} value={language}>
-                {language}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="فیلتر جنسیت صدا"
-            value={voiceGender}
-            onChange={(event) => setVoiceGender(event.target.value)}
-            className="h-9 rounded-md border border-border bg-background/40 px-3 text-sm"
-          >
-            <option value="all">همهٔ جنسیت‌ها</option>
-            <option value="female">زن</option>
-            <option value="male">مرد</option>
-          </select>
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Switch
-              checked={interactiveOnly}
-              onCheckedChange={setInteractiveOnly}
-              aria-label="فقط صداهای سازگار با آواتار تعاملی"
-            />
-            فقط سازگار با آواتار تعاملی
-          </label>
-        </div>
-
-        <div className="mt-3 max-h-64 overflow-y-auto rounded-xl">
-          <button
-            type="button"
-            onClick={() => setVoiceId("")}
-            className={`flex w-full items-center justify-between px-3 py-2 text-sm ${
-              voiceId === "" ? "bg-primary/15 text-primary" : "hover:bg-background/40"
-            }`}
-          >
-            صدای پیش‌فرض چهره
-          </button>
-          {voices.map((voice) => (
-            <div
-              key={voice.voiceId}
-              className={`flex items-center justify-between gap-2 px-3 py-2 text-sm ${
-                voiceId === voice.voiceId ? "bg-primary/15" : ""
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => setVoiceId(voice.voiceId)}
-                className="flex-1 text-right"
-              >
-                <span className="block truncate">{voice.name}</span>
-                <span className="block text-[11px] text-muted-foreground">
-                  {[voice.language, voice.gender].filter(Boolean).join(" — ")}
-                </span>
-              </button>
-              {voice.previewUrl && (
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="size-8 shrink-0"
-                  aria-label={`پخش پیش‌نمایش صدای ${voice.name}`}
-                  onClick={() => playPreview(voice.previewUrl!)}
-                >
-                  <Play className="size-4" />
-                </Button>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">
-          انتخاب جدید: {selectedAvatarName || "—"} / {selectedVoiceName || "صدای پیش‌فرض"}
-          <span dir="ltr" className="block">
-            {avatarId || "—"} · {voiceId || "default"}
-          </span>
-        </p>
-        <Button
-          type="button"
-          disabled={save.isPending || !avatarId}
-          onClick={() =>
-            save.mutate({ avatarName: selectedAvatarName, voiceName: selectedVoiceName })
-          }
-        >
-          {save.isPending && <Loader2 className="size-4 animate-spin" />}
-          ذخیرهٔ چهره و صدا
-        </Button>
-      </div>
-      {save.isError && (
-        <p className="mt-2 text-xs text-destructive-foreground">
-          {errorText(save.error, "ذخیرهٔ انتخاب ناموفق بود.")}
-        </p>
-      )}
-      {save.isSuccess && (
-        <p className="mt-2 text-xs text-primary">
-          انتخاب ذخیره شد. صفحهٔ دستیار را تازه‌سازی کنید تا چهرهٔ جدید بارگذاری شود.
-        </p>
-      )}
-    </section>
   );
 }
 

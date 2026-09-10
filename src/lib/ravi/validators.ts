@@ -30,14 +30,6 @@ export const settingsSchema = z.object({
 
 export type SettingsInput = z.infer<typeof settingsSchema>;
 
-export const avatarSelectionSchema = z.object({
-  avatarId: z.string().max(200),
-  voiceId: z.string().max(200),
-  avatarName: z.string().max(200),
-  voiceName: z.string().max(200).default(""),
-  previewUrl: z.string().max(2000).default(""),
-});
-
 export const connectionKeySchema = z.enum(["openai", "heygen"]);
 
 export const toggleServiceSchema = z.object({
@@ -50,8 +42,6 @@ export const managedKeyNameSchema = z.enum([
   // Keys tab cannot save a key the key store is willing to hold.
   "OPENAI_API_KEY",
   "HEYGEN_API_KEY",
-  "LIVEAVATAR_AVATAR_ID",
-  "LIVEAVATAR_CONTEXT_ID",
 ]);
 
 export const saveKeySchema = z.object({

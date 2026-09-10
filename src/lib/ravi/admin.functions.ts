@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireAdminSession } from "./admin.middleware";
 import {
-  avatarSelectionSchema,
   connectionKeySchema,
   managedKeyNameSchema,
   saveKeySchema,
@@ -13,11 +12,9 @@ import {
   connectionOverview,
   listSettingsVersions,
   restoreSettingsVersion,
-  saveAvatarSelection,
   testConnection,
   toggleService,
 } from "./connections.server";
-import { listHeygenAvatars, listHeygenVoices } from "./heygen.server";
 import {
   adminDeleteDocument,
   adminIngestPdf,
@@ -106,20 +103,6 @@ export const checkConnection = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => connectionKeySchema.parse(data))
   .handler(async ({ data }) => {
     return testConnection(data);
-  });
-
-export const listAvatarLooks = createServerFn({ method: "GET" })
-  .middleware([requireAdminSession])
-  .handler(async () => {
-    const [avatars, voices] = await Promise.all([listHeygenAvatars(), listHeygenVoices()]);
-    return { avatars, voices };
-  });
-
-export const selectAvatar = createServerFn({ method: "POST" })
-  .middleware([requireAdminSession])
-  .inputValidator((data: unknown) => avatarSelectionSchema.parse(data))
-  .handler(async ({ context, data }) => {
-    return saveAvatarSelection(data, context.userId);
   });
 
 export const setServiceEnabled = createServerFn({ method: "POST" })

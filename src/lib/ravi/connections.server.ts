@@ -72,7 +72,6 @@ export async function connectionOverview() {
   try { data = await settingsRow(); } catch { /* DB unreachable — use env var defaults */ }
 
   const checks = data ? readChecks(data) : {} as Record<string, CheckRecord>;
-  const avatarVendor = config.heygenKey ? await detectAvatarVendor(config.heygenKey) : null;
 
   const connections: ConnectionStatus[] = [
     {
@@ -99,17 +98,10 @@ export async function connectionOverview() {
     activeChat: "openai" as const,
     activeStt: "openai" as const,
     avatarActive: Boolean(config.heygenKey),
-    avatarVendor,
     dbAvailable: data !== null,
     avatarSession: (checks["avatar_session"] ?? null) as
       | { ok?: boolean; reason?: string; checked_at?: string }
       | null,
-    avatar: {
-      avatarId: (data?.heygen_avatar_id || config.liveAvatarAvatarId || ""),
-      voiceId: data?.heygen_voice_id || "",
-      avatarName: data?.heygen_avatar_name || "",
-      voiceName: data?.heygen_voice_name || "",
-    },
   };
 }
 
@@ -244,32 +236,6 @@ export async function toggleService(
     `${TOGGLE_LABEL[input.key]} ${input.enabled ? "فعال شد" : "غیرفعال شد"}`,
     userId,
   );
-  return { ok: true as const };
-}
-
-export async function saveAvatarSelection(input: {
-  avatarId: string;
-  voiceId: string;
-  avatarName: string;
-  voiceName: string;
-  previewUrl?: string;
-}, userId: string | null) {
-  const current = await settingsRow();
-  try {
-    await sql`
-      UPDATE app_settings
-      SET heygen_avatar_id = ${input.avatarId},
-          heygen_voice_id = ${input.voiceId},
-          heygen_avatar_name = ${input.avatarName},
-          heygen_voice_name = ${input.voiceName},
-          heygen_avatar_preview = ${input.previewUrl || null},
-          updated_at = now()
-      WHERE id = ${current.id}
-    `;
-  } catch {
-    throw new Error("ذخیرهٔ انتخاب آواتار ناموفق بود.");
-  }
-  await recordVersion(`چهره: ${input.avatarName || input.avatarId || "بدون نام"}`, userId);
   return { ok: true as const };
 }
 

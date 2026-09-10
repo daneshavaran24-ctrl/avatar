@@ -1,12 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { sql } from "@/lib/db/client.server";
 
-export const MANAGED_KEYS = [
-  "OPENAI_API_KEY",
-  "HEYGEN_API_KEY",
-  "LIVEAVATAR_AVATAR_ID",
-  "LIVEAVATAR_CONTEXT_ID",
-] as const;
+export const MANAGED_KEYS = ["OPENAI_API_KEY", "HEYGEN_API_KEY"] as const;
 
 export type ManagedKeyName = (typeof MANAGED_KEYS)[number];
 
