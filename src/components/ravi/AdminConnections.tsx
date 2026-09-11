@@ -170,6 +170,10 @@ export function AdminConnections() {
 
   const db = diagnosis.data;
   const dbProblem = db && (!db.dbConnected || !db.providerKeysTableExists || !db.hasKeySecret);
+  // Keys live in Postgres, so with it unreachable the save button cannot ever
+  // succeed. Disabling it up front beats letting the operator discover that
+  // one failed attempt at a time.
+  const keyStorageDown = Boolean(db && !db.dbConnected);
 
   return (
     <div className="flex flex-col gap-6">
@@ -202,6 +206,7 @@ export function AdminConnections() {
               <ul className="mt-2 space-y-1 text-xs" dir="ltr">
                 <li className="font-mono text-yellow-200">OPENAI_API_KEY <span className="text-yellow-100/50">(الزامی — موتور پاسخ)</span></li>
                 <li className="font-mono text-yellow-200">HEYGEN_API_KEY <span className="text-yellow-100/50">(الزامی — کلید LiveAvatar)</span></li>
+                <li className="font-mono text-yellow-200">LIVEAVATAR_CONTEXT_ID <span className="text-yellow-100/50">(الزامی — شناسه است نه کلید؛ صدا و شخصیت آواتار)</span></li>
               </ul>
               <p className="mt-2 text-xs text-yellow-100/70">
                 پس از تنظیم متغیرها، اپ را ری‌استارت کنید. وضعیت هر کلید در کارت‌های زیر نشان داده می‌شود.
@@ -290,6 +295,7 @@ export function AdminConnections() {
                     key={field.name}
                     field={field}
                     status={data?.keys?.find((item) => item.name === field.name)}
+                    storageDown={keyStorageDown}
                   />
                 ))}
 
@@ -362,7 +368,15 @@ export function AdminConnections() {
   );
 }
 
-function KeyField({ field, status }: { field: ServiceField; status: KeyStatus | undefined }) {
+function KeyField({
+  field,
+  status,
+  storageDown,
+}: {
+  field: ServiceField;
+  status: KeyStatus | undefined;
+  storageDown: boolean;
+}) {
   const { name, label, secret, hint } = field;
   const queryClient = useQueryClient();
   const saveFn = useServerFn(saveProviderKey);
@@ -401,8 +415,13 @@ function KeyField({ field, status }: { field: ServiceField; status: KeyStatus | 
           type={secret && !visible ? "password" : "text"}
           autoComplete="off"
           value={value}
+          disabled={storageDown}
           onChange={(event) => setValue(event.target.value)}
-          placeholder={status?.masked ?? (secret ? "کلید را وارد کنید…" : "شناسه را وارد کنید…")}
+          placeholder={
+            storageDown
+              ? "ذخیره در پنل ممکن نیست"
+              : (status?.masked ?? (secret ? "کلید را وارد کنید…" : "شناسه را وارد کنید…"))
+          }
           className="h-9 bg-surface-2 text-left"
         />
         {secret && (
@@ -422,7 +441,7 @@ function KeyField({ field, status }: { field: ServiceField; status: KeyStatus | 
           size="icon"
           className="size-9 shrink-0"
           aria-label="ذخیرهٔ کلید"
-          disabled={save.isPending || value.trim().length < 3}
+          disabled={storageDown || save.isPending || value.trim().length < 3}
           onClick={() => save.mutate()}
         >
           {save.isPending ? (
@@ -438,7 +457,7 @@ function KeyField({ field, status }: { field: ServiceField; status: KeyStatus | 
             variant="ghost"
             className="size-9 shrink-0 text-destructive-foreground"
             aria-label="حذف کلید"
-            disabled={remove.isPending}
+            disabled={storageDown || remove.isPending}
             onClick={() => remove.mutate()}
           >
             <Trash2 className="size-4" />
@@ -450,14 +469,22 @@ function KeyField({ field, status }: { field: ServiceField; status: KeyStatus | 
           {errorText(save.error ?? remove.error, "عملیات روی کلید ناموفق بود.")}
         </p>
       ) : (
-        <p className="text-[11px] text-muted-foreground">
-          {save.isSuccess
-            ? "ذخیره شد."
-            : status?.stored
-              ? `ذخیره‌شده: ${status.masked}`
-              : status?.fromEnv
-                ? "از متغیر محیطی سرور خوانده می‌شود."
-                : hint}
+        <p className={`text-[11px] ${storageDown ? "text-yellow-100/70" : "text-muted-foreground"}`}>
+          {storageDown ? (
+            <>
+              تا وصل‌شدن دیتابیس، ذخیره در پنل ممکن نیست. این مقدار را به‌عنوان
+              متغیر محیطی <code dir="ltr" className="font-mono">{name}</code> در پنل لیارا
+              تنظیم و اپ را ری‌استارت کنید.
+            </>
+          ) : save.isSuccess ? (
+            "ذخیره شد."
+          ) : status?.stored ? (
+            `ذخیره‌شده: ${status.masked}`
+          ) : status?.fromEnv ? (
+            "از متغیر محیطی سرور خوانده می‌شود."
+          ) : (
+            hint
+          )}
         </p>
       )}
     </div>

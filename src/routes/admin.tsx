@@ -90,13 +90,17 @@ function Overview() {
 
   if (overview.isError) {
     return (
-      <p className="rounded-2xl bg-destructive/15 px-4 py-3 text-sm text-destructive-foreground">
-        دسترسی مدیریتی برای این حساب کاربری فعال نیست. با مدیر سامانه تماس بگیرید.
+      <p className="rounded-2xl bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100/80">
+        آمار در دسترس نیست؛ اتصال به دیتابیس برقرار نشد. بقیهٔ پنل کار می‌کند —
+        جزئیات خطا در تب «کلیدها و آواتار» نمایش داده می‌شود.
       </p>
     );
   }
 
-  const data = overview.data;
+  // An outage yields zeroes from empty result sets; showing them as real counts
+  // would be a measurement we never took.
+  const data = overview.data?.dbAvailable ? overview.data : undefined;
+  const statsOffline = overview.isSuccess && !overview.data?.dbAvailable;
   const cards = [
     { label: "نشست‌های گفتگو", value: data?.sessionCount ?? "—" },
     { label: "پاسخ‌های تولیدشده", value: data?.answerCount ?? "—" },
@@ -110,6 +114,12 @@ function Overview() {
 
   return (
     <div className="flex flex-col gap-3">
+      {statsOffline && (
+        <p className="rounded-2xl bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100/80">
+          آمار در دسترس نیست؛ اتصال به دیتابیس برقرار نشد. بقیهٔ پنل کار می‌کند —
+          جزئیات خطا در تب «کلیدها و آواتار» نمایش داده می‌شود.
+        </p>
+      )}
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {cards.map((card, index) => (
           <div

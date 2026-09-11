@@ -48,17 +48,32 @@ export async function loadStoredKeys(): Promise<Partial<Record<ManagedKeyName, s
   return out;
 }
 
+/**
+ * Keys are only storable while the database is up. Saying so — and naming the
+ * environment variable that works without one — is the difference between a
+ * fixable problem and an operator retrying the same button.
+ */
+function storageUnavailable(name: ManagedKeyName): Error {
+  return new Error(
+    `دیتابیس در دسترس نیست، پس ذخیره در پنل ممکن نیست. کلید را به‌عنوان متغیر محیطی ${name} در پنل لیارا تنظیم کنید و اپ را ری‌استارت کنید.`,
+  );
+}
+
 export async function saveStoredKey(name: ManagedKeyName, value: string) {
+  // Encrypt outside the try: a missing RAVI_KEY_SECRET is a different problem
+  // from an unreachable database, and collapsing both into one message is what
+  // made this undiagnosable.
+  const ciphertext = encrypt(value.trim());
   try {
     await sql`
       INSERT INTO provider_keys (name, value_ciphertext, updated_at)
-      VALUES (${name}, ${encrypt(value.trim())}, now())
+      VALUES (${name}, ${ciphertext}, now())
       ON CONFLICT (name) DO UPDATE
         SET value_ciphertext = EXCLUDED.value_ciphertext, updated_at = now()
     `;
   } catch (error) {
     console.error("[KeyStore] saveStoredKey failed:", error instanceof Error ? error.message : error);
-    throw new Error("ذخیرهٔ کلید ناموفق بود.");
+    throw storageUnavailable(name);
   }
   return { ok: true as const };
 }
@@ -68,7 +83,7 @@ export async function deleteStoredKey(name: ManagedKeyName) {
     await sql`DELETE FROM provider_keys WHERE name = ${name}`;
   } catch (error) {
     console.error("[KeyStore] deleteStoredKey failed:", error instanceof Error ? error.message : error);
-    throw new Error("حذف کلید ناموفق بود.");
+    throw storageUnavailable(name);
   }
   return { ok: true as const };
 }

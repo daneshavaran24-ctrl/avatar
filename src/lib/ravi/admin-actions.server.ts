@@ -114,20 +114,34 @@ export async function adminListConversation(sessionId: string) {
 }
 
 export async function adminOverview() {
+  // Stats are nice to have; an unreachable database must not fail the whole
+  // panel. But a zero we invented must not pass for a zero we measured, so the
+  // outage is reported and the caller renders "—" rather than counts.
+  let dbAvailable = true;
+  const orEmpty = async <T>(query: Promise<T[]>): Promise<T[]> => {
+    try {
+      return await query;
+    } catch (error) {
+      console.error("[Admin] overview query failed:", error instanceof Error ? error.message : error);
+      dbAvailable = false;
+      return [];
+    }
+  };
+
   const [sessionCounts, assistantMessages, documents, providerEvents] = await Promise.all([
-    sql<{ count: string }[]>`SELECT count(*)::text AS count FROM conversation_sessions`,
-    sql<{ source_type: string | null; latency_ms: number | null }[]>`
+    orEmpty(sql<{ count: string }[]>`SELECT count(*)::text AS count FROM conversation_sessions`),
+    orEmpty(sql<{ source_type: string | null; latency_ms: number | null }[]>`
       SELECT source_type, latency_ms
       FROM conversation_messages
       WHERE role = 'assistant'
       LIMIT 1000
-    `,
-    sql<{ chunk_count: number; status: string }[]>`
+    `),
+    orEmpty(sql<{ chunk_count: number; status: string }[]>`
       SELECT chunk_count, status FROM knowledge_documents
-    `,
-    sql<{ success: boolean }[]>`
+    `),
+    orEmpty(sql<{ success: boolean }[]>`
       SELECT success FROM provider_events ORDER BY created_at DESC LIMIT 200
-    `,
+    `),
   ]);
   const latencies = assistantMessages
     .map((message) => message.latency_ms)
@@ -143,6 +157,7 @@ export async function adminOverview() {
   const failures = providerEvents.filter((event) => !event.success).length;
 
   return {
+    dbAvailable,
     sessionCount: Number(sessionCounts[0]?.count ?? 0),
     answerCount: assistantMessages.length,
     medianLatencyMs: latencies.length ? latencies[Math.floor(latencies.length / 2)] : null,
