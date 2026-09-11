@@ -42,6 +42,11 @@ COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/migrations ./migrations
 COPY --from=build /app/scripts/migrate.mjs ./scripts/migrate.mjs
 COPY --from=build /app/scripts/seed-admin.mjs ./scripts/seed-admin.mjs
+# Plain .mjs, so unlike the two above it needs no esbuild step — `postgres` is
+# already in the runtime node_modules below. Run it by hand to find out which
+# layer of the database connection is broken:
+#   liara shell -a aiavatar -c "node scripts/db-doctor.mjs"
+COPY --from=build /app/scripts/db-doctor.mjs ./scripts/db-doctor.mjs
 
 # Only two small pure-JS packages needed at runtime (for migration/seed scripts).
 # Nitro bundles everything the server itself needs into .output/.
