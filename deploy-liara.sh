@@ -5,7 +5,14 @@
 set -e
 
 APP_NAME="aiavatar"
-DB_URL="postgresql://root:16gtx3tTGcMTftu6oSoYdkJH@wonderful-booth-b1-utnz3-db:5432/postgres"
+# اعتبارنامه هرگز داخل این فایل نوشته نمی‌شود — این فایل در گیت است.
+# قبل از اجرا: export DB_URL='postgresql://user:pass@host:5432/dbname'
+if [ -z "$DB_URL" ]; then
+    echo "❌ متغیر DB_URL تنظیم نشده است."
+    echo "   نشانی اتصال دیتابیس را از پنل لیارا بردارید و اجرا کنید:"
+    echo "   export DB_URL='postgresql://user:pass@host:5432/dbname'"
+    exit 1
+fi
 
 echo "=========================================="
 echo "  دیپلوی راوی‌استان روی لیارا"
@@ -29,9 +36,23 @@ if [ "$LOGGED_IN" != "y" ]; then
     liara login
 fi
 
-# ۳. ساختن secret ها
-SESSION_SECRET=$(openssl rand -hex 32)
-RAVI_KEY_SECRET=$(openssl rand -hex 32)
+# ۳. ساختن secret ها — فقط اگر از قبل نداشته باشیم.
+#
+# RAVI_KEY_SECRET کلیدهای ذخیره‌شده را رمزنگاری می‌کند. ساختن مقدار تازه روی
+# استقرار موجود، همهٔ آن کلیدها را برای همیشه غیرقابل‌رمزگشایی می‌کند. پس اگر
+# قبلاً ست شده، همان حفظ می‌شود و این اسکریپت بی‌خطر قابل اجرای دوباره است.
+SESSION_SECRET="${SESSION_SECRET:-$(openssl rand -hex 32)}"
+RAVI_KEY_SECRET="${RAVI_KEY_SECRET:-$(openssl rand -hex 32)}"
+
+echo ""
+echo "⚠️  اگر این اپ قبلاً مستقر شده و کلیدی در پنل ذخیره کرده‌اید،"
+echo "   مقدار فعلی RAVI_KEY_SECRET را از پنل لیارا بردارید و پیش از اجرا"
+echo "   با export تنظیمش کنید، وگرنه کلیدهای ذخیره‌شده از دست می‌روند."
+read -p "ادامه می‌دهید؟ (y/n): " CONFIRM_SECRETS
+if [ "$CONFIRM_SECRETS" != "y" ]; then
+    echo "لغو شد."
+    exit 1
+fi
 
 # ۴. گرفتن OpenAI API Key
 echo ""
@@ -63,10 +84,11 @@ echo "=========================================="
 echo "  ✅ دیپلوی تمام شد!"
 echo "=========================================="
 echo ""
-echo "حالا migration رو اجرا کن:"
-echo "  liara shell --app $APP_NAME"
-echo "  node scripts/migrate.mjs"
+echo "مایگریشن‌ها خودکار هنگام بالا آمدن اپ اجرا می‌شوند"
+echo "(liara.json → platform: node → npm start → scripts/start.mjs)."
+echo "برای بررسی وضعیت، تب «کلیدها و آواتار» در پنل مدیریت را باز کنید."
 echo ""
 echo "SESSION_SECRET=$SESSION_SECRET"
 echo "RAVI_KEY_SECRET=$RAVI_KEY_SECRET"
-echo "⚠️  این مقادیر رو جایی امن ذخیره کن!"
+echo "⚠️  این مقادیر رو جایی امن ذخیره کن — و RAVI_KEY_SECRET را"
+echo "   هرگز بعد از ذخیرهٔ کلیدها عوض نکن."

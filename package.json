@@ -11,8 +11,8 @@
     "start": "HOST=0.0.0.0 NITRO_HOST=0.0.0.0 NITRO_PORT=3000 NODE_ENV=production node scripts/start.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "db:migrate": "tsx scripts/migrate.ts",
-    "db:seed-admin": "tsx scripts/seed-admin.ts",
+    "db:migrate": "tsx --env-file-if-exists=.env scripts/migrate.ts",
+    "db:seed-admin": "tsx --env-file-if-exists=.env scripts/seed-admin.ts",
     "typecheck": "tsc --noEmit",
     "test:e2e": "node scripts/e2e-check.mjs"
   },
