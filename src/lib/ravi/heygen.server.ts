@@ -31,6 +31,11 @@ export async function detectAvatarVendor(key: string): Promise<AvatarVendor> {
  * Mints a LiveAvatar embed URL via the v2/embeddings endpoint.
  * The embed URL is loaded in an iframe — LiveAvatar handles ASR, LLM, TTS,
  * and avatar rendering internally. No SDK, WebRTC, or chroma-key needed.
+ *
+ * Both avatar_id and context_id are required. The context is where the voice,
+ * language, persona and knowledge live, so omitting it does not merely lose
+ * personality — LiveAvatar falls back to its own demo avatar, which answers in
+ * the wrong language and lip-syncs to it.
  */
 export async function createEmbedUrl(): Promise<EmbedResult> {
   const config = await providerConfig();
@@ -39,6 +44,7 @@ export async function createEmbedUrl(): Promise<EmbedResult> {
 
   const avatarId = config.liveAvatarAvatarId;
   const contextId = config.liveAvatarContextId;
+  if (!contextId) return { configured: false, reason: "LIVEAVATAR_CONTEXT_NOT_CONFIGURED" };
 
   try {
     const response = await fetch(`${LIVEAVATAR_BASE}/v2/embeddings`, {
@@ -46,8 +52,8 @@ export async function createEmbedUrl(): Promise<EmbedResult> {
       headers: { "X-API-KEY": key, "Content-Type": "application/json" },
       body: JSON.stringify({
         avatar_id: avatarId,
-        ...(contextId ? { context_id: contextId } : {}),
-        is_sandbox: !contextId,
+        context_id: contextId,
+        is_sandbox: false,
       }),
     });
 

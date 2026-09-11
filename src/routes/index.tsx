@@ -98,6 +98,8 @@ function RaviStage() {
 }
 
 function reasonToMessage(reason: string): string {
+  if (/CONTEXT_NOT_CONFIGURED/.test(reason))
+    return "شخصیت و صدای آواتار هنوز تنظیم نشده است. در داشبورد لایواواتار یک context با صدای فارسی بسازید و شناسهٔ آن را در تنظیمات ثبت کنید.";
   if (/NOT_CONFIGURED/.test(reason))
     return "کلید سرویس آواتار تنظیم نشده است. از پنل مدیریت کلید را وارد کنید.";
   if (/UNREACHABLE/.test(reason))

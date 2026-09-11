@@ -188,10 +188,16 @@ export const MAX_AUDIO_UPLOAD_BYTES = 10 * 1024 * 1024;
 /**
  * شناسهٔ آواتار پیش‌فرض. embed بدون avatar_id ساخته نمی‌شود، و چون دیتابیس
  * ممکن است در دسترس نباشد، این مقدار تضمین می‌کند صفحهٔ اصلی فقط با
- * HEYGEN_API_KEY کار کند. کلید ذخیره‌شده در پنل یا LIVEAVATAR_AVATAR_ID
- * بر این مقدار اولویت دارند.
+ * HEYGEN_API_KEY کار کند. متغیر محیطی LIVEAVATAR_AVATAR_ID بر آن اولویت دارد.
  */
 export const DEFAULT_LIVEAVATAR_AVATAR_ID = "6879c60d-3633-459e-ba76-9b0c585e3f1b";
+
+/**
+ * شناسهٔ context پیش‌فرض — صدا، زبان، شخصیت و دانش آواتار همگی از اینجا
+ * می‌آیند، نه از بدنهٔ درخواست embed. بدون آن لایواواتار آواتار دموی خودش را
+ * با صدای غیرفارسی برمی‌گرداند. متغیر محیطی LIVEAVATAR_CONTEXT_ID اولویت دارد.
+ */
+export const DEFAULT_LIVEAVATAR_CONTEXT_ID = "";
 
 export type ChatProvider = "openai" | "none";
 export type SttProvider = "openai" | "none";

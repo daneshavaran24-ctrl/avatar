@@ -10,6 +10,7 @@ import {
   LOW_PERSIAN_PENALTY,
   MIN_TRANSCRIPT_LENGTH,
   DEFAULT_LIVEAVATAR_AVATAR_ID,
+  DEFAULT_LIVEAVATAR_CONTEXT_ID,
   ERROR_AUDIO_TOO_SHORT,
   ERROR_TRANSCRIPTION_EMPTY,
   DEEPGRAM_MODEL_ATTEMPTS,
@@ -61,7 +62,7 @@ export async function providerConfig() {
     openAiModel: process.env["OPENAI_MODEL"] || "gpt-4o-mini",
     heygenKey: enabled.heygen ? heygenKey : null,
     liveAvatarAvatarId: process.env["LIVEAVATAR_AVATAR_ID"] || DEFAULT_LIVEAVATAR_AVATAR_ID,
-    liveAvatarContextId: process.env["LIVEAVATAR_CONTEXT_ID"] || null,
+    liveAvatarContextId: process.env["LIVEAVATAR_CONTEXT_ID"] || DEFAULT_LIVEAVATAR_CONTEXT_ID,
   };
 }
 
