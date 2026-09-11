@@ -199,6 +199,13 @@ export const DEFAULT_LIVEAVATAR_AVATAR_ID = "6879c60d-3633-459e-ba76-9b0c585e3f1
  */
 export const DEFAULT_LIVEAVATAR_CONTEXT_ID = "";
 
+/**
+ * آواتار sandbox متعلق به خود لایواواتار است، نه حساب ما. در حالت sandbox
+ * باید همین فرستاده شود (شناسهٔ آواتار خودمان پذیرفته نیست) — پس چهره‌ای که
+ * دیده می‌شود دموی آن‌هاست و اعتباری مصرف نمی‌کند.
+ */
+export const LIVEAVATAR_SANDBOX_AVATAR_ID = "65f9e3c9-d48b-4118-b73a-4ae2e3cbb8f0";
+
 export type ChatProvider = "openai" | "none";
 export type SttProvider = "openai" | "none";
 export type TtsProvider = "openai" | "browser";

@@ -1,9 +1,10 @@
+import { LIVEAVATAR_SANDBOX_AVATAR_ID } from "./constants";
 import { providerConfig } from "./providers.server";
 
 export type AvatarVendor = "heygen" | "liveavatar";
 
 export type EmbedResult =
-  | { configured: true; embedUrl: string }
+  | { configured: true; embedUrl: string; sandbox: boolean }
   | { configured: false; reason: string };
 
 const LIVEAVATAR_BASE = "https://api.liveavatar.com";
@@ -36,15 +37,24 @@ export async function detectAvatarVendor(key: string): Promise<AvatarVendor> {
  * language, persona and knowledge live, so omitting it does not merely lose
  * personality — LiveAvatar falls back to its own demo avatar, which answers in
  * the wrong language and lip-syncs to it.
+ *
+ * LIVEAVATAR_SANDBOX=true spends no credits, but LiveAvatar only accepts its
+ * own sandbox avatar in that mode, so the face on screen is their demo rather
+ * than ours. The flag is returned so the page can say so.
  */
 export async function createEmbedUrl(): Promise<EmbedResult> {
   const config = await providerConfig();
   const key = config.heygenKey;
   if (!key) return { configured: false, reason: "HEYGEN_NOT_CONFIGURED" };
 
-  const avatarId = config.liveAvatarAvatarId;
+  const sandbox = config.liveAvatarSandbox;
   const contextId = config.liveAvatarContextId;
-  if (!contextId) return { configured: false, reason: "LIVEAVATAR_CONTEXT_NOT_CONFIGURED" };
+  // Sandbox exists to prove the key and the round trip work before any context
+  // exists, so requiring one here would defeat the only thing it is good for.
+  if (!sandbox && !contextId) {
+    return { configured: false, reason: "LIVEAVATAR_CONTEXT_NOT_CONFIGURED" };
+  }
+  const avatarId = sandbox ? LIVEAVATAR_SANDBOX_AVATAR_ID : config.liveAvatarAvatarId;
 
   try {
     const response = await fetch(`${LIVEAVATAR_BASE}/v2/embeddings`, {
@@ -52,8 +62,8 @@ export async function createEmbedUrl(): Promise<EmbedResult> {
       headers: { "X-API-KEY": key, "Content-Type": "application/json" },
       body: JSON.stringify({
         avatar_id: avatarId,
-        context_id: contextId,
-        is_sandbox: false,
+        ...(contextId ? { context_id: contextId } : {}),
+        is_sandbox: sandbox,
       }),
     });
 
@@ -67,7 +77,7 @@ export async function createEmbedUrl(): Promise<EmbedResult> {
     const embedUrl = json.data?.url;
     if (!embedUrl) return { configured: false, reason: "LIVEAVATAR_EMBED_URL_EMPTY" };
 
-    return { configured: true, embedUrl };
+    return { configured: true, embedUrl, sandbox };
   } catch {
     return { configured: false, reason: "LIVEAVATAR_UNREACHABLE" };
   }

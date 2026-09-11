@@ -63,6 +63,7 @@ export async function providerConfig() {
     heygenKey: enabled.heygen ? heygenKey : null,
     liveAvatarAvatarId: process.env["LIVEAVATAR_AVATAR_ID"] || DEFAULT_LIVEAVATAR_AVATAR_ID,
     liveAvatarContextId: process.env["LIVEAVATAR_CONTEXT_ID"] || DEFAULT_LIVEAVATAR_CONTEXT_ID,
+    liveAvatarSandbox: process.env["LIVEAVATAR_SANDBOX"] === "true",
   };
 }
 

@@ -207,6 +207,7 @@ export function AdminConnections() {
                 <li className="font-mono text-yellow-200">OPENAI_API_KEY <span className="text-yellow-100/50">(الزامی — موتور پاسخ)</span></li>
                 <li className="font-mono text-yellow-200">HEYGEN_API_KEY <span className="text-yellow-100/50">(الزامی — کلید LiveAvatar)</span></li>
                 <li className="font-mono text-yellow-200">LIVEAVATAR_CONTEXT_ID <span className="text-yellow-100/50">(الزامی — شناسه است نه کلید؛ صدا و شخصیت آواتار)</span></li>
+                <li className="font-mono text-yellow-200">LIVEAVATAR_SANDBOX <span className="text-yellow-100/50">(اختیاری — مقدار true: تست بدون مصرف اعتبار، با چهرهٔ دمو)</span></li>
               </ul>
               <p className="mt-2 text-xs text-yellow-100/70">
                 پس از تنظیم متغیرها، اپ را ری‌استارت کنید. وضعیت هر کلید در کارت‌های زیر نشان داده می‌شود.

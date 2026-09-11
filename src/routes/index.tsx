@@ -32,6 +32,7 @@ export const Route = createFileRoute("/")({
 function RaviStage() {
   const avatarSessionFn = useServerFn(requestAvatarSession);
   const [embedUrl, setEmbedUrl] = useState<string | null>(null);
+  const [sandbox, setSandbox] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +43,7 @@ function RaviStage() {
         if (!active) return;
         if (result.configured) {
           setEmbedUrl(result.embedUrl);
+          setSandbox(result.sandbox);
         } else {
           setError(reasonToMessage(result.reason));
         }
@@ -88,8 +90,18 @@ function RaviStage() {
         )}
 
         {!loading && embedUrl && (
-          <div className="h-full w-full max-w-5xl overflow-hidden rounded-2xl shadow-2xl shadow-primary/10">
-            <LiveAvatarEmbed url={embedUrl} />
+          <div className="flex h-full w-full max-w-5xl flex-col gap-2">
+            {sandbox && (
+              <p className="shrink-0 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-2 text-center text-xs text-yellow-100/80">
+                حالت آزمایشی (sandbox) — این چهرهٔ دموی لایواواتار است، نه آواتار شما،
+                و اعتباری مصرف نمی‌شود. برای دیدن آواتار خودتان متغیر
+                <code dir="ltr" className="mx-1 font-mono">LIVEAVATAR_SANDBOX</code>
+                را بردارید.
+              </p>
+            )}
+            <div className="min-h-0 flex-1 overflow-hidden rounded-2xl shadow-2xl shadow-primary/10">
+              <LiveAvatarEmbed url={embedUrl} />
+            </div>
           </div>
         )}
       </div>
