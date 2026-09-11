@@ -58,6 +58,30 @@ function errorText(error: unknown, fallback: string): string {
   return message;
 }
 
+/**
+ * Driver errors name the symptom, not the cause. On Liara the common one is a
+ * hostname that does not resolve, which means the app was never joined to the
+ * database's private network — unguessable from "ENOTFOUND" alone.
+ */
+function explainDbError(raw: string): string | null {
+  if (/ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(raw)) {
+    return "نام میزبان دیتابیس شناخته نشد. در لیارا، اپ و دیتابیس باید در یک شبکهٔ خصوصی مشترک باشند؛ در پنل لیارا اپ را به همان شبکهٔ دیتابیس اضافه کنید، یا موقتاً از نشانی «شبکهٔ عمومی» در صفحهٔ «نحوهٔ اتصال» دیتابیس استفاده کنید.";
+  }
+  if (/ECONNREFUSED/i.test(raw)) {
+    return "میزبان پیدا شد ولی پورت بسته بود. روشن‌بودن دیتابیس و درستی پورت را بررسی کنید.";
+  }
+  if (/password authentication|28P01|SASL/i.test(raw)) {
+    return "نام کاربری یا رمز دیتابیس پذیرفته نشد. مقدار DATABASE_URL را با صفحهٔ «نحوهٔ اتصال» در پنل لیارا مقایسه کنید.";
+  }
+  if (/ETIMEDOUT|timeout/i.test(raw)) {
+    return "مهلت اتصال تمام شد — معمولاً فایروال یا مسیر شبکه.";
+  }
+  if (/does not exist|3D000/i.test(raw)) {
+    return "نام دیتابیس در نشانی اتصال وجود ندارد.";
+  }
+  return null;
+}
+
 function formatDate(value: string): string {
   try {
     return new Intl.DateTimeFormat("fa-IR", {
@@ -184,7 +208,16 @@ export function AdminConnections() {
             {!db.dbConnected && (
               <li>
                 اتصال به دیتابیس برقرار نشد
-                {db.dbError && <span className="text-xs opacity-70"> — {db.dbError}</span>}
+                {db.dbError && explainDbError(db.dbError) && (
+                  <span className="mt-1 block font-medium text-yellow-200">
+                    {explainDbError(db.dbError)}
+                  </span>
+                )}
+                {db.dbError && (
+                  <span dir="ltr" className="mt-1 block font-mono text-[11px] opacity-60">
+                    {db.dbError}
+                  </span>
+                )}
               </li>
             )}
             {db.dbConnected && !db.providerKeysTableExists && (
