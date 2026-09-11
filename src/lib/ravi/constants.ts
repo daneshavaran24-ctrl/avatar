@@ -197,7 +197,7 @@ export const DEFAULT_LIVEAVATAR_AVATAR_ID = "6879c60d-3633-459e-ba76-9b0c585e3f1
  * می‌آیند، نه از بدنهٔ درخواست embed. بدون آن لایواواتار آواتار دموی خودش را
  * با صدای غیرفارسی برمی‌گرداند. متغیر محیطی LIVEAVATAR_CONTEXT_ID اولویت دارد.
  */
-export const DEFAULT_LIVEAVATAR_CONTEXT_ID = "";
+export const DEFAULT_LIVEAVATAR_CONTEXT_ID = "ebab7549-6b94-45a3-9ec2-36194bfc3688";
 
 /**
  * آواتار sandbox متعلق به خود لایواواتار است، نه حساب ما. در حالت sandbox
